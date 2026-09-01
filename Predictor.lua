@@ -1,4 +1,4 @@
--- Greedy Growers Meteor Hopper (Exakte Erkennung ohne Fehlalarme)
+-- Greedy Growers Meteor Hopper (Inkl. fixer Erkennung für Nächstes Wetter)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -61,7 +61,7 @@ end
 local latestCurrent = "Normal"
 local latestNext = "Keines"
 
--- Präziser Scanner mit exaktem Abgleich (keine falschen Teiltreffer mehr)
+-- Scanner mit verbesserter Erkennung für aktuelles und nächstes Wetter
 local function scanGame()
     local detectedWeather = "Normal"
     local detectedNext = "Keines"
@@ -74,7 +74,7 @@ local function scanGame()
                     local cleanTxt = normalize(txt)
                     
                     if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
-                        -- Menüs / Shops / Infotafeln strikt ausschließen
+                        -- Shops / Menüs / Infotafeln ausschließen
                         local ignore = false
                         local parentObj = gui.Parent
                         while parentObj and parentObj ~= LocalPlayer.PlayerGui do
@@ -89,11 +89,12 @@ local function scanGame()
                         if not ignore then
                             for _, w in ipairs(validWeathers) do
                                 local normW = normalize(w)
-                                -- Exakter Treffer oder saubere Prefix-Erkennung (verhindert das Vermischen von Normal/Acid/Misty)
-                                if cleanTxt == normW or cleanTxt == "weather: " .. normW or cleanTxt == "wetter: " .. normW then
+                                if cleanTxt:find(normW) then
                                     local pName = gui.Parent.Name:lower()
                                     local gName = gui.Name:lower()
-                                    if pName:find("next") or gName:find("next") or pName:find("upcoming") then
+                                    
+                                    -- Prüfen ob es das nächste Wetter ist (entweder im Text oder im Objektnamen)
+                                    if cleanTxt:find("next") or cleanTxt:find("upcoming") or pName:find("next") or gName:find("next") or pName:find("upcoming") then
                                         detectedNext = w
                                     else
                                         detectedWeather = w
@@ -154,7 +155,7 @@ task.spawn(function()
         StatusLbl.Text = "Status: METEOR GEFUNDEN! Bleibe hier!"
         StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
     else
-        StatusLbl.Text = "Status: Kein Meteor (" .. latestCurrent .. "), springe weiter..."
+        StatusLbl.Text = "Status: Kein Meteor, springe weiter..."
         StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
         task.wait(3)
         
