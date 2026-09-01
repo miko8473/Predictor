@@ -1,26 +1,28 @@
--- Greedy Growers Meteor Hopper (Inkl. fixer Erkennung für Nächstes Wetter)
+-- Greedy Growers Meteor Hopper (Final Edition - Rechts-Seiten & Chance Filter)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
--- Alte GUI entfernen
+-- Alte GUI entfernen, damit es keine Doppelten gibt
 pcall(function()
     if CoreGui:FindFirstChild("MeteorSnifferGui") then
         CoreGui.MeteorSnifferGui:Destroy()
     end
 end)
 
--- Clean GUI
+-- GUI erstellen (Sauber, minimalistisch & verschiebbar)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MeteorSnifferGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 250, 0, 115)
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 260, 0, 110)
 MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 MainFrame.BorderSizePixel = 0
@@ -47,11 +49,10 @@ local function createLabel(posY, text, color)
 end
 
 local CurrentLbl = createLabel(12, "Aktuelles Wetter: Lade...", Color3.fromRGB(200, 200, 200))
-local NextLbl = createLabel(36, "Nächstes Wetter: Lade...", Color3.fromRGB(100, 220, 255))
-local StatusLbl = createLabel(62, "Status: Prüfe Server...", Color3.fromRGB(255, 220, 100))
+local StatusLbl = createLabel(42, "Status: Prüfe Server...", Color3.fromRGB(255, 220, 100))
 
 local validWeathers = {
-    "Misty", "Sandstorm", "Blizzard", "Acid Rain", "Rainbow", "Meteor Shower", "Lucky River"
+    "Meteor Shower", "Acid Rain", "Blizzard", "Sandstorm", "Misty", "Rainbow", "Lucky River"
 }
 
 local function normalize(str)
@@ -59,58 +60,6 @@ local function normalize(str)
 end
 
 local latestCurrent = "Normal"
-local latestNext = "Keines"
-
--- Scanner mit verbesserter Erkennung für aktuelles und nächstes Wetter
-local function scanGame()
-    local detectedWeather = "Normal"
-    local detectedNext = "Keines"
-
-    pcall(function()
-        if LocalPlayer:FindFirstChild("PlayerGui") then
-            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
-                if gui:IsA("TextLabel") or gui:IsA("TextBox") then
-                    local txt = gui.Text
-                    local cleanTxt = normalize(txt)
-                    
-                    if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
-                        -- Shops / Menüs / Infotafeln ausschließen
-                        local ignore = false
-                        local parentObj = gui.Parent
-                        while parentObj and parentObj ~= LocalPlayer.PlayerGui do
-                            local pName = parentObj.Name:lower()
-                            if pName:find("shop") or pName:find("market") or pName:find("guide") or pName:find("info") or pName:find("index") or pName:find("list") or pName:find("grid") or pName:find("menu") or pName:find("pass") then
-                                ignore = true
-                                break
-                            end
-                            parentObj = parentObj.Parent
-                        end
-                        
-                        if not ignore then
-                            for _, w in ipairs(validWeathers) do
-                                local normW = normalize(w)
-                                if cleanTxt:find(normW) then
-                                    local pName = gui.Parent.Name:lower()
-                                    local gName = gui.Name:lower()
-                                    
-                                    -- Prüfen ob es das nächste Wetter ist (entweder im Text oder im Objektnamen)
-                                    if cleanTxt:find("next") or cleanTxt:find("upcoming") or pName:find("next") or gName:find("next") or pName:find("upcoming") then
-                                        detectedNext = w
-                                    else
-                                        detectedWeather = w
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    latestCurrent = detectedWeather
-    latestNext = detectedNext
-end
 
 -- Server-Hop Funktion
 local function serverHop()
@@ -137,19 +86,77 @@ local function serverHop()
     end)
 end
 
--- Hauptlogik
+-- Präziser Scanner: Konzentriert sich auf die rechte Bildschirmseite & Chance-Anzeige
+local function scanGame()
+    local detectedWeather = "Normal"
+
+    pcall(function()
+        if LocalPlayer:FindFirstChild("PlayerGui") then
+            local camera = Workspace.CurrentCamera
+            local screenWidth = camera and camera.ViewportSize.X or 1000
+            
+            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") or gui:IsA("TextBox") then
+                    local txt = gui.Text
+                    local cleanTxt = normalize(txt)
+                    
+                    if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
+                        -- Prüfen, ob das Element auf der RECHTEN Bildschirmhälfte liegt (wo das Wetter angezeigt wird)
+                        local onRightSide = false
+                        pcall(function()
+                            if gui.AbsolutePosition.X > (screenWidth * 0.5) then
+                                onRightSide = true
+                            end
+                        end)
+                        
+                        -- Auch prüfen, ob in dem Text eine Chance/Prozentangabe oder "mutate" steht
+                        local hasChanceOrMutation = cleanTxt:find("%%") or cleanTxt:find("mutate") or cleanTxt:find("chance") or cleanTxt:find("seed")
+                        
+                        -- Shops und Menüs strikt ausschließen
+                        local ignore = false
+                        local parentObj = gui.Parent
+                        while parentObj and parentObj ~= LocalPlayer.PlayerGui do
+                            local pName = parentObj.Name:lower()
+                            if pName:find("shop") or pName:find("market") or pName:find("guide") or pName:find("info") or pName:find("index") or pName:find("list") or pName:find("pass") then
+                                ignore = true
+                                break
+                            end
+                            parentObj = parentObj.Parent
+                        end
+                        
+                        -- Wenn es rechts ist oder die Chance anzeigt und kein Shop ist:
+                        if not ignore and (onRightSide or hasChanceOrMutation) then
+                            for _, w in ipairs(validWeathers) do
+                                local normW = normalize(w)
+                                if cleanTxt:find(normW) then
+                                    detectedWeather = w
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    latestCurrent = detectedWeather
+end
+
+-- Hauptlogik beim Start
 task.spawn(function()
-    task.wait(5) -- Zeit zum Laden geben
+    task.wait(5) -- Kurz warten, bis das Spiel auf dem iPad geladen ist
     
-    scanGame()
-    task.wait(1)
-    scanGame()
+    -- Ein paar Scans zum Einpendeln
+    for i = 1, 3 do
+        scanGame()
+        task.wait(1)
+    end
     
-    CurrentLbl.Text = "Aktuelles Wetter: " .. latestCurrent
-    NextLbl.Text = "Nächstes Wetter: " .. latestNext
+    CurrentLbl.Text = "Wetter: " .. latestCurrent
     
-    -- Prüfen ob Meteor Shower aktuell ODER als nächstes ansteht
-    local hasMeteor = (normalize(latestCurrent) == "meteor shower") or (normalize(latestNext) == "meteor shower")
+    -- Prüfen, ob Meteor Shower aktiv ist
+    local hasMeteor = (normalize(latestCurrent) == "meteor shower")
     
     if hasMeteor then
         StatusLbl.Text = "Status: METEOR GEFUNDEN! Bleibe hier!"
@@ -159,9 +166,9 @@ task.spawn(function()
         StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
         task.wait(3)
         
-        -- Sicherheitscheck vor dem Hop
+        -- Letzter Sicherheitscheck vor dem Hop
         scanGame()
-        if (normalize(latestCurrent) == "meteor shower") or (normalize(latestNext) == "meteor shower") then
+        if (normalize(latestCurrent) == "meteor shower") then
             StatusLbl.Text = "Status: METEOR GEFUNDEN! Bleibe hier!"
             StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
         else
