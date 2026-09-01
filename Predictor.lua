@@ -1,4 +1,4 @@
--- Greedy Growers Meteor Hopper (Einfach & Direkt)
+-- Greedy Growers Meteor Hopper (Präzise Wetter-Erkennung)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -87,8 +87,11 @@ task.spawn(function()
                     local txt = gui.Text
                     if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
                         local lowerTxt = txt:lower()
-                        -- Shop / Menüs ignorieren
-                        if not lowerTxt:find("shop") and not lowerTxt:find("buy") and not lowerTxt:find("price") then
+                        
+                        -- Shop / Menüs / unnötige UI-Texte komplett ignorieren
+                        if not lowerTxt:find("shop") and not lowerTxt:find("buy") and not lowerTxt:find("price") and not lowerTxt:find("chance") then
+                            
+                            -- Exakte Wetter-Erkennung (Kein falsches Misty mehr bei Normalwetter)
                             if lowerTxt:find("meteor shower") or lowerTxt:find("meteorshower") then
                                 foundMeteor = true
                                 activeWeather = "Meteor Shower"
@@ -98,12 +101,12 @@ task.spawn(function()
                                 activeWeather = "Blizzard"
                             elseif lowerTxt:find("sandstorm") then
                                 activeWeather = "Sandstorm"
-                            elseif lowerTxt:find("misty") then
-                                activeWeather = "Misty"
                             elseif lowerTxt:find("rainbow") then
                                 activeWeather = "Rainbow"
                             elseif lowerTxt:find("lucky river") then
                                 activeWeather = "Lucky River"
+                            elseif lowerTxt == "misty" or lowerTxt:find("weather: misty") then
+                                activeWeather = "Misty"
                             end
                         end
                     end
@@ -119,7 +122,7 @@ task.spawn(function()
         StatusLbl.Text = "Status: METEOR GEFUNDEN! Bleibe hier!"
         StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
     else
-        StatusLbl.Text = "Status: Kein Meteor, springe weiter..."
+        StatusLbl.Text = "Status: Kein Meteor (" .. activeWeather .. "), springe weiter..."
         task.wait(2)
         serverHop()
     end
