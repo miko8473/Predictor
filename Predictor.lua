@@ -1,29 +1,28 @@
--- Greedy Growers Meteor Hopper (Strict Next-Weather Event Only)
+-- Greedy Growers Meteor Auto-Hopper (Knit API Edition)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
--- Alte GUI restlos entfernen
+-- Alte GUI entfernen
 pcall(function()
-    if CoreGui:FindFirstChild("MeteorSnifferGui") then
-        CoreGui.MeteorSnifferGui:Destroy()
+    if CoreGui:FindFirstChild("WeatherHopperGui") then
+        CoreGui.WeatherHopperGui:Destroy()
     end
 end)
 
 -- GUI erstellen
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MeteorSnifferGui"
+ScreenGui.Name = "WeatherHopperGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 280, 0, 140)
+MainFrame.Size = UDim2.new(0, 300, 0, 190)
 MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 MainFrame.BorderSizePixel = 0
@@ -37,7 +36,7 @@ UICorner.Parent = MainFrame
 
 local function createLabel(posY, text, color)
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -24, 0, 24)
+    lbl.Size = UDim2.new(1, -24, 0, 22)
     lbl.Position = UDim2.new(0, 12, 0, posY)
     lbl.BackgroundTransparency = 1
     lbl.Text = text
@@ -50,18 +49,29 @@ local function createLabel(posY, text, color)
 end
 
 local CurrentLbl = createLabel(12, "Aktuell: Lädt...", Color3.fromRGB(200, 200, 200))
-local NextLbl    = createLabel(40, "Nächstes: Lädt...", Color3.fromRGB(100, 220, 255))
-local StatusLbl  = createLabel(72, "Status: Scanne Server...", Color3.fromRGB(255, 220, 100))
+local NextLbl    = createLabel(38, "Nächstes: Lädt...", Color3.fromRGB(100, 220, 255))
+local TimeLbl    = createLabel(64, "Uhrzeit: Lädt...", Color3.fromRGB(255, 220, 100))
+local StatusLbl  = createLabel(92, "Status: Scanne Server...", Color3.fromRGB(255, 220, 100))
 
-local validWeathers = {
-    "Meteor Shower", "Acid Rain", "Blizzard", "Sandstorm", "Misty", "Rainbow", "Lucky River"
-}
+-- Manueller Server Hop Button (falls man trotzdem wechseln will)
+local HopButton = Instance.new("TextButton")
+HopButton.Size = UDim2.new(1, -24, 0, 32)
+HopButton.Position = UDim2.new(0, 12, 0, 135)
+HopButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+HopButton.Text = "MANUELLER HOP"
+HopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+HopButton.TextSize = 13
+HopButton.Font = Enum.Font.GothamBold
+HopButton.Parent = MainFrame
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 8)
+ButtonCorner.Parent = HopButton
 
 local function normalize(str)
     return tostring(str):lower():gsub("^%s+", ""):gsub("%s+$", "")
 end
 
--- Server-Hop Funktion
 local function serverHop()
     StatusLbl.Text = "Status: Kein Meteor -> Server Hop!"
     StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 0)
@@ -86,116 +96,71 @@ local function serverHop()
     end)
 end
 
--- Scanner für echte Events (kein Normal für das nächste Event)
-local function scanGame()
-    local detectedWeather = "Normal"
-    local detectedNext = "Suche..."
+HopButton.MouseButton1Click:Connect(serverHop)
 
-    pcall(function()
-        -- 1. Spieldaten durchsuchen
-        local function searchFolder(parent)
-            if not parent then return end
-            for _, obj in ipairs(parent:GetDescendants()) do
-                local nameLower = obj.Name:lower()
-                if nameLower:find("weather") or nameLower:find("wetter") or nameLower:find("event") or nameLower:find("queue") then
-                    local val = nil
-                    if obj:IsA("StringValue") or obj:IsA("IntValue") then
-                        val = tostring(obj.Value)
-                    elseif obj.GetAttribute then
-                        val = tostring(obj:GetAttribute("Weather") or obj:GetAttribute("NextWeather") or obj:GetAttribute("Event"))
-                    end
-                    
-                    if val and val ~= "nil" and val ~= "" then
-                        for _, w in ipairs(validWeathers) do
-                            if normalize(val):find(normalize(w)) then
-                                if nameLower:find("next") or nameLower:find("upcoming") or nameLower:find("queue") then
-                                    detectedNext = w
-                                else
-                                    detectedWeather = w
-                                end
-                            end
-                        end
+local function getWeatherServiceRF()
+    local rfPath = ReplicatedStorage:FindFirstChild("Packages")
+    if rfPath and rfPath:FindFirstChild("_Index") then
+        for _, child in ipairs(rfPath._Index:GetChildren()) do
+            if child.Name:sub(1, 14) == "sleitnick_knit" then
+                local knit = child:FindFirstChild("knit")
+                if knit and knit:FindFirstChild("Services") then
+                    local ws = knit.Services:FindFirstChild("WeatherService")
+                    if ws and ws:FindFirstChild("RF") then
+                        return ws.RF:FindFirstChild("GetNextWeather")
                     end
                 end
             end
         end
+    end
+    return nil
+end
 
-        searchFolder(ReplicatedStorage)
-        searchFolder(Workspace)
+-- Automatische Logik beim Betreten des Servers
+task.spawn(function()
+    task.wait(2.5) -- Kurz warten, bis das Spiel vollständig geladen ist
+    
+    local curr = "Normal"
+    local nxt = "Keines"
+    local timeStr = "Unbekannt"
+    
+    pcall(function()
+        -- 1. Aktuelles Wetter auslesen
+        if ReplicatedStorage:FindFirstChild("CurrentWeather") then
+            curr = tostring(ReplicatedStorage.CurrentWeather.Value)
+        end
 
-        -- 2. GUI durchsuchen
-        if LocalPlayer:FindFirstChild("PlayerGui") then
-            for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
-                if gui:IsA("TextLabel") or gui:IsA("TextBox") then
-                    local txt = gui.Text
-                    local cleanTxt = normalize(txt)
-                    
-                    if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
-                        local pName = gui.Parent.Name:lower()
-                        local gName = gui.Name:lower()
-                        
-                        local ignore = false
-                        local parentObj = gui.Parent
-                        while parentObj and parentObj ~= LocalPlayer.PlayerGui do
-                            local pn = parentObj.Name:lower()
-                            if pn:find("shop") or pn:find("market") or pn:find("guide") or pn:find("info") or pn:find("pass") then
-                                ignore = true
-                                break
-                            end
-                            parentObj = parentObj.Parent
-                        end
-                        
-                        if not ignore then
-                            for _, w in ipairs(validWeathers) do
-                                local normW = normalize(w)
-                                if cleanTxt:find(normW) then
-                                    if cleanTxt:find("next") or cleanTxt:find("upcoming") or pName:find("next") or gName:find("next") or pName:find("upcoming") or pName:find("queue") then
-                                        detectedNext = w
-                                    else
-                                        detectedWeather = w
-                                    end
-                                end
-                            end
-                        end
-                    end
+        -- 2. Nächstes Wetter & Uhrzeit über Knit abfragen
+        local remote = getWeatherServiceRF()
+        if remote then
+            local success, res = pcall(function()
+                return remote:InvokeServer()
+            end)
+            if success and type(res) == "table" and res.key then
+                nxt = tostring(res.key)
+                if res.startTime then
+                    timeStr = os.date("%H:%M:%S", res.startTime)
                 end
             end
         end
     end)
 
-    return detectedWeather, detectedNext
-end
+    -- GUI aktualisieren
+    CurrentLbl.Text = "Aktuell: " + curr -- (Lua syntax fix: .. instead of +)
+    CurrentLbl.Text = "Aktuell: " .. curr
+    NextLbl.Text    = "Nächstes: " .. nxt
+    TimeLbl.Text    = "Uhrzeit: " .. timeStr
 
--- Hauptlogik
-task.spawn(function()
-    task.wait(5) -- Laden abwarten
-    
-    local finalWeather = "Normal"
-    local finalNext = "Wartet..."
-    
-    for attempt = 1, 6 do
-        StatusLbl.Text = "Status: Analysiere Events (" .. attempt .. "/6)..."
-        
-        local cur, nxt = scanGame()
-        if cur ~= "Normal" then finalWeather = cur end
-        if nxt ~= "Suche..." and nxt ~= "Wartet..." then finalNext = nxt end
-        
-        CurrentLbl.Text = "Aktuell: " .. finalWeather
-        NextLbl.Text    = "Nächstes: " .. finalNext
-        
-        -- Wenn Meteor gefunden (aktuell ODER nächste) -> SOFORT BLEIBEN
-        if normalize(finalWeather) == "meteor shower" or normalize(finalNext) == "meteor shower" then
-            StatusLbl.Text = "Status: 🎯 METEOR GEFUNDEN! Bleibe hier!"
-            StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
-            return
-        end
-        
+    -- Prüfen, ob ein Meteor im Spiel ist (aktuell ODER nächste)
+    local hasMeteor = normalize(curr):find("meteor") or normalize(nxt):find("meteor")
+
+    if hasMeteor then
+        StatusLbl.Text = "Status: 🎯 METEOR GEFUNDEN! Bleibe hier!"
+        StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
+    else
+        StatusLbl.Text = "Status: Kein Meteor -> Server Hop!"
+        StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
         task.wait(1.5)
+        serverHop()
     end
-    
-    -- Wenn nach allen Versuchen kein Meteor da ist -> Hop!
-    StatusLbl.Text = "Status: Kein Meteor -> Server Hop!"
-    StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
-    task.wait(1.5)
-    serverHop()
 end)
