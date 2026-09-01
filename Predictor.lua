@@ -1,4 +1,4 @@
--- Greedy Growers Meteor Hopper (Direct Game Data & UI Inspector)
+-- Greedy Growers Meteor Hopper (No-Fallback / Pure Game Data Edition)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -8,14 +8,14 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
--- Alte GUI entfernen
+-- Alte GUI restlos entfernen
 pcall(function()
     if CoreGui:FindFirstChild("MeteorSnifferGui") then
         CoreGui.MeteorSnifferGui:Destroy()
     end
 end)
 
--- Profi GUI erstellen
+-- GUI erstellen
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MeteorSnifferGui"
 ScreenGui.ResetOnSpawn = false
@@ -49,9 +49,9 @@ local function createLabel(posY, text, color)
     return lbl
 end
 
-local CurrentLbl = createLabel(12, "Aktuell: Suche...", Color3.fromRGB(200, 200, 200))
-local NextLbl    = createLabel(40, "Nächstes: Suche...", Color3.fromRGB(100, 220, 255))
-local StatusLbl  = createLabel(72, "Status: Analysiere Spieldaten...", Color3.fromRGB(255, 220, 100))
+local CurrentLbl = createLabel(12, "Aktuell: Lädt...", Color3.fromRGB(200, 200, 200))
+local NextLbl    = createLabel(40, "Nächstes: Lädt...", Color3.fromRGB(100, 220, 255))
+local StatusLbl  = createLabel(72, "Status: Scanne Server...", Color3.fromRGB(255, 220, 100))
 
 local validWeathers = {
     "Meteor Shower", "Acid Rain", "Blizzard", "Sandstorm", "Misty", "Rainbow", "Lucky River"
@@ -86,23 +86,25 @@ local function serverHop()
     end)
 end
 
--- Smarter Scanner: Durchsucht Spieldaten (ReplicatedStorage/Workspace) + Bildschirm
+-- Scanner, der direkt echte Wetterdaten ausliest
 local function scanGame()
     local detectedWeather = "Normal"
-    local detectedNext = "Keines"
+    local detectedNext = "Unbekannt"
 
     pcall(function()
-        -- 1. Versuch: Spieldaten / Werte direkt aus ReplicatedStorage oder Workspace auslesen
-        local function checkFolder(parent)
+        -- 1. Suche in Spieldaten (ReplicatedStorage / Workspace)
+        local function searchFolder(parent)
             if not parent then return end
             for _, obj in ipairs(parent:GetDescendants()) do
                 local nameLower = obj.Name:lower()
-                if nameLower:find("weather") or nameLower:find("wetter") or nameLower:find("event") then
+                if nameLower:find("weather") or nameLower:find("wetter") or nameLower:find("event") or nameLower:find("queue") then
                     local val = nil
                     if obj:IsA("StringValue") or obj:IsA("IntValue") then
                         val = tostring(obj.Value)
-                    elseif obj:IsA("Attribute") or (obj.GetAttribute and obj:GetAttribute("Weather")) then
+                    elseif obj.GetAttribute and obj:GetAttribute("Weather") then
                         val = tostring(obj:GetAttribute("Weather"))
+                    elseif obj.GetAttribute and obj:GetAttribute("NextWeather") then
+                        detectedNext = tostring(obj:GetAttribute("NextWeather"))
                     end
                     
                     if val then
@@ -120,22 +122,26 @@ local function scanGame()
             end
         end
 
-        checkFolder(ReplicatedStorage)
-        checkFolder(Workspace)
+        searchFolder(ReplicatedStorage)
+        searchFolder(Workspace)
 
-        -- 2. Versuch: Wenn in den Spieldaten nichts gefunden wurde, den Bildschirm scannen
-        if detectedWeather == "Normal" and LocalPlayer:FindFirstChild("PlayerGui") then
+        -- 2. Suche auf dem Bildschirm (GUI)
+        if LocalPlayer:FindFirstChild("PlayerGui") then
             for _, gui in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") or gui:IsA("TextBox") then
                     local txt = gui.Text
                     local cleanTxt = normalize(txt)
                     
                     if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
+                        local pName = gui.Parent.Name:lower()
+                        local gName = gui.Name:lower()
+                        
+                        -- Shops komplett ignorieren
                         local ignore = false
                         local parentObj = gui.Parent
                         while parentObj and parentObj ~= LocalPlayer.PlayerGui do
-                            local pName = parentObj.Name:lower()
-                            if pName:find("shop") or pName:find("market") or pName:find("guide") or pName:find("info") or pName:find("index") or pName:find("list") or pName:find("pass") then
+                            local pn = parentObj.Name:lower()
+                            if pn:find("shop") or pn:find("market") or pn:find("guide") or pn:find("info") or pn:find("pass") then
                                 ignore = true
                                 break
                             end
@@ -146,8 +152,6 @@ local function scanGame()
                             for _, w in ipairs(validWeathers) do
                                 local normW = normalize(w)
                                 if cleanTxt:find(normW) then
-                                    local pName = gui.Parent.Name:lower()
-                                    local gName = gui.Name:lower()
                                     if cleanTxt:find("next") or cleanTxt:find("upcoming") or pName:find("next") or gName:find("next") or pName:find("upcoming") then
                                         detectedNext = w
                                     else
@@ -165,40 +169,36 @@ local function scanGame()
     return detectedWeather, detectedNext
 end
 
--- Hauptlogik mit Multi-Scan
+-- Hauptlogik
 task.spawn(function()
-    StatusLbl.Text = "Status: Warte auf Verbindung..."
-    task.wait(5)
+    task.wait(5) -- Laden abwarten
     
-    local foundMeteor = false
     local finalWeather = "Normal"
-    local finalNext = "Keines"
+    local finalNext = "Normal"
     
     for attempt = 1, 5 do
-        StatusLbl.Text = "Status: Prüfe Spieldaten (" .. attempt .. "/5)..."
+        StatusLbl.Text = "Status: Lese Spieldaten (" .. attempt .. "/5)..."
         
         local cur, nxt = scanGame()
         if cur ~= "Normal" then finalWeather = cur end
-        if nxt ~= "Keines" then finalNext = nxt end
+        if nxt ~= "Unbekannt" then finalNext = nxt end
         
         CurrentLbl.Text = "Aktuell: " .. finalWeather
         NextLbl.Text    = "Nächstes: " .. finalNext
         
+        -- Wenn Meteor gefunden (egal ob aktuell oder nächste), sofort stoppen und bleiben
         if normalize(finalWeather) == "meteor shower" or normalize(finalNext) == "meteor shower" then
-            foundMeteor = true
-            break
+            StatusLbl.Text = "Status: 🎯 METEOR GEFUNDEN! Bleibe hier!"
+            StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
+            return
         end
         
         task.wait(1.5)
     end
     
-    if foundMeteor then
-        StatusLbl.Text = "Status: 🎯 METEOR GEFUNDEN! Bleibe hier!"
-        StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
-    else
-        StatusLbl.Text = "Status: Kein Meteor -> Server Hop in 2s..."
-        StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
-        task.wait(2)
-        serverHop()
-    end
+    -- Wenn nach 5 Versuchen kein Meteor da ist -> Sofort Hop!
+    StatusLbl.Text = "Status: Kein Meteor -> Server Hop!"
+    StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
+    task.wait(1.5)
+    serverHop()
 end)
