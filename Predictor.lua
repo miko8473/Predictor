@@ -1,4 +1,4 @@
--- Greedy Growers Meteor Hopper (Current & Next Weather Predictor)
+-- Greedy Growers Meteor Hopper (Fokus auf den rechten Wetter-Button)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -14,7 +14,7 @@ pcall(function()
     end
 end)
 
--- GUI erstellen (Mit Aktuell und Nächstes Wetter)
+-- Clean GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MeteorSnifferGui"
 ScreenGui.ResetOnSpawn = false
@@ -22,7 +22,7 @@ ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 260, 0, 130)
+MainFrame.Size = UDim2.new(0, 260, 0, 95)
 MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 MainFrame.BorderSizePixel = 0
@@ -48,9 +48,8 @@ local function createLabel(posY, text, color)
     return lbl
 end
 
-local CurrentLbl = createLabel(10, "Aktuelles Wetter: Lade...", Color3.fromRGB(200, 200, 200))
-local NextLbl = createLabel(34, "Nächstes Wetter: Lade...", Color3.fromRGB(100, 220, 255))
-local StatusLbl = createLabel(62, "Status: Prüfe Server...", Color3.fromRGB(255, 220, 100))
+local CurrentLbl = createLabel(15, "Wetter: Lade...", Color3.fromRGB(200, 200, 200))
+local StatusLbl = createLabel(45, "Status: Prüfe Server...", Color3.fromRGB(255, 220, 100))
 
 local validWeathers = {
     "Meteor Shower", "Acid Rain", "Blizzard", "Sandstorm", "Misty", "Rainbow", "Lucky River"
@@ -61,7 +60,6 @@ local function normalize(str)
 end
 
 local latestCurrent = "Normal"
-local latestNext = "Keines"
 
 -- Server-Hop Funktion
 local function serverHop()
@@ -88,10 +86,9 @@ local function serverHop()
     end)
 end
 
--- Scanner für aktuelles und nächstes Wetter (Rechte Seite + Chance/Mutation Filter)
+-- Scanner: Schaut ausschließlich auf die rechte Bildschirmhälfte (zum Wetter-Button)
 local function scanGame()
     local detectedWeather = "Normal"
-    local detectedNext = "Keines"
 
     pcall(function()
         if LocalPlayer:FindFirstChild("PlayerGui") then
@@ -104,18 +101,15 @@ local function scanGame()
                     local cleanTxt = normalize(txt)
                     
                     if not gui:IsDescendantOf(ScreenGui) and txt ~= "" then
-                        -- Nur rechte Bildschirmhälfte prüfen
+                        -- Nur Elemente auf der rechten Bildschirmseite prüfen (ab 55% der Breite)
                         local onRightSide = false
                         pcall(function()
-                            if gui.AbsolutePosition.X > (screenWidth * 0.5) then
+                            if gui.AbsolutePosition.X > (screenWidth * 0.55) then
                                 onRightSide = true
                             end
                         end)
                         
-                        -- Merkmale für Wetter-Anzeigen (Chance, Mutate, Next, Upcoming)
-                        local hasWeatherKeywords = cleanTxt:find("%%") or cleanTxt:find("mutate") or cleanTxt:find("chance") or cleanTxt:find("seed") or cleanTxt:find("next") or cleanTxt:find("upcoming")
-                        
-                        -- Shops und Menüs ausschließen
+                        -- Shops und Menüs strikt ausschließen
                         local ignore = false
                         local parentObj = gui.Parent
                         while parentObj and parentObj ~= LocalPlayer.PlayerGui do
@@ -127,19 +121,11 @@ local function scanGame()
                             parentObj = parentObj.Parent
                         end
                         
-                        if not ignore and (onRightSide or hasWeatherKeywords) then
+                        if not ignore and onRightSide then
                             for _, w in ipairs(validWeathers) do
-                                local normW = normalize(w)
-                                if cleanTxt:find(normW) then
-                                    local pName = gui.Parent.Name:lower()
-                                    local gName = gui.Name:lower()
-                                    
-                                    -- Prüfen ob es das nächste Wetter ist
-                                    if cleanTxt:find("next") or cleanTxt:find("upcoming") or pName:find("next") or gName:find("next") or pName:find("upcoming") then
-                                        detectedNext = w
-                                    else
-                                        detectedWeather = w
-                                    end
+                                if cleanTxt:find(normalize(w)) then
+                                    detectedWeather = w
+                                    break
                                 end
                             end
                         end
@@ -150,12 +136,11 @@ local function scanGame()
     end)
 
     latestCurrent = detectedWeather
-    latestNext = detectedNext
 end
 
 -- Hauptlogik
 task.spawn(function()
-    task.wait(5) -- Laden abwarten
+    task.wait(5) -- Warten bis das Spiel geladen ist
     
     for i = 1, 3 do
         scanGame()
@@ -163,10 +148,8 @@ task.spawn(function()
     end
     
     CurrentLbl.Text = "Wetter: " .. latestCurrent
-    NextLbl.Text = "Nächstes: " .. latestNext
     
-    -- Prüfen ob Meteor Shower aktuell ODER als nächstes aktiv ist
-    local hasMeteor = (normalize(latestCurrent) == "meteor shower") or (normalize(latestNext) == "meteor shower")
+    local hasMeteor = (normalize(latestCurrent) == "meteor shower")
     
     if hasMeteor then
         StatusLbl.Text = "Status: METEOR GEFUNDEN! Bleibe hier!"
@@ -176,9 +159,8 @@ task.spawn(function()
         StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
         task.wait(3)
         
-        -- Letzter Sicherheitscheck
         scanGame()
-        if (normalize(latestCurrent) == "meteor shower") or (normalize(latestNext) == "meteor shower") then
+        if (normalize(latestCurrent) == "meteor shower") then
             StatusLbl.Text = "Status: METEOR GEFUNDEN! Bleibe hier!"
             StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
         else
