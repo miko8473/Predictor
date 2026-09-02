@@ -1,4 +1,6 @@
--- Greedy Growers Weather Sniffer & Hopper
+-- Greedy Growers Weather Sniffer & Hopper V3 (Fixes & Debug)
+print("[WeatherHopper] Skript wird gestartet...")
+
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -7,17 +9,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
--- Alte GUI entfernen, falls sie noch da ist
+-- Alte GUI entfernen
 pcall(function()
     if CoreGui:FindFirstChild("WeatherHopperGui") then
         CoreGui.WeatherHopperGui:Destroy()
     end
 end)
 
--- Schöne, verschiebbare GUI erstellen
+-- GUI Erstellen
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "WeatherHopperGui"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
@@ -48,13 +51,14 @@ local function createLabel(posY, text, color)
     return lbl
 end
 
-local CurrentLbl = createLabel(12, "Aktuell: Lädt...", Color3.fromRGB(200, 200, 200))
-local NextLbl    = createLabel(38, "Nächstes: Lädt...", Color3.fromRGB(100, 220, 255))
-local TimeLbl    = createLabel(64, "Uhrzeit: Lädt...", Color3.fromRGB(255, 220, 100))
+local CurrentLbl = createLabel(12, "Aktuell: Suche...", Color3.fromRGB(200, 200, 200))
+local NextLbl    = createLabel(38, "Nächstes: Suche...", Color3.fromRGB(100, 220, 255))
+local TimeLbl    = createLabel(64, "Uhrzeit: --:--", Color3.fromRGB(255, 220, 100))
 local StatusLbl  = createLabel(90, "Status: Bereit", Color3.fromRGB(150, 255, 150))
 
--- Ausklapp-Button ("Suche >") für das Menü
+-- Ausklapp-Button ("Suche >")
 local SearchToggleBtn = Instance.new("TextButton")
+SearchToggleBtn.Name = "SearchToggleBtn"
 SearchToggleBtn.Size = UDim2.new(1, -24, 0, 24)
 SearchToggleBtn.Position = UDim2.new(0, 12, 0, 116)
 SearchToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
@@ -69,13 +73,14 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 6)
 ToggleCorner.Parent = SearchToggleBtn
 
--- Container für die Event-Liste (Standardmäßig eingeklappt)
+-- Container für die Event-Liste
 local EventContainer = Instance.new("ScrollingFrame")
+EventContainer.Name = "EventContainer"
 EventContainer.Size = UDim2.new(1, -24, 0, 100)
 EventContainer.Position = UDim2.new(0, 12, 0, 146)
 EventContainer.BackgroundTransparency = 1
 EventContainer.BorderSizePixel = 0
-EventContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+EventContainer.CanvasSize = UDim2.new(0, 0, 0, 200) -- Feste Start-Größe damit nichts leer bleibt
 EventContainer.ScrollBarThickness = 4
 EventContainer.Visible = false
 EventContainer.Parent = MainFrame
@@ -87,6 +92,7 @@ UIListLayout.Parent = EventContainer
 
 -- Server Hop Button
 local HopButton = Instance.new("TextButton")
+HopButton.Name = "HopButton"
 HopButton.Size = UDim2.new(1, -24, 0, 32)
 HopButton.Position = UDim2.new(0, 12, 0, 145)
 HopButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
@@ -100,7 +106,7 @@ local ButtonCorner = Instance.new("UICorner")
 ButtonCorner.CornerRadius = UDim.new(0, 8)
 ButtonCorner.Parent = HopButton
 
--- Liste aller auswählbaren Events
+-- Liste aller verfügbaren Events
 local availableWeathers = {
     "Meteor Shower",
     "Acid Rain",
@@ -111,12 +117,12 @@ local availableWeathers = {
     "Lucky River"
 }
 
--- Standardmäßig ist Meteor Shower ausgewählt
+-- Standardmäßig ausgewählt
 local selectedWeathers = {
     ["meteor shower"] = true
 }
 
--- Checkboxen für jedes Event generieren
+-- Checkboxen erstellen
 for i, weatherName in ipairs(availableWeathers) do
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 22)
@@ -157,11 +163,7 @@ for i, weatherName in ipairs(availableWeathers) do
     end)
 end
 
-UIListLayout.AbsoluteContentSizeChanged:Connect(function(size)
-    EventContainer.CanvasSize = UDim2.new(0, 0, 0, size.Y)
-end)
-
--- Ein- und Ausklapp-Logik für den Pfeil
+-- Ein- und Ausklapp-Logik
 local isExpanded = false
 SearchToggleBtn.MouseButton1Click:Connect(function()
     isExpanded = not isExpanded
@@ -205,72 +207,40 @@ end
 
 HopButton.MouseButton1Click:Connect(serverHop)
 
--- Funktion um den Knit RemoteFunction-Pfad sicher zu finden
-local function getNextWeatherRemote()
-    local rfPath = ReplicatedStorage:FindFirstChild("Packages")
-    if rfPath and rfPath:FindFirstChild("_Index") then
-        for _, child in ipairs(rfPath._Index:GetChildren()) do
-            if child.Name:sub(1, 14) == "sleitnick_knit" then
-                local knit = child:FindFirstChild("knit")
-                if knit and knit:FindFirstChild("Services") then
-                    local ws = knit.Services:FindFirstChild("WeatherService")
-                    if ws and ws:FindFirstChild("RF") then
-                        return ws.RF:FindFirstChild("GetNextWeather")
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
 local function normalize(str)
     return tostring(str):lower():gsub("^%s+", ""):gsub("%s+$", "")
 end
 
--- Live-Aktualisierung im Hintergrund
+-- Live-Aktualisierung mit Suche in ReplicatedStorage nach Wetter-Werten
 task.spawn(function()
     task.wait(2)
+    print("[WeatherHopper] Überwachung gestartet.")
     
-    while true do
+    while ScreenGui.Parent do
         pcall(function()
-            -- 1. Aktuelles Wetter auslesen
-            local curr = "Normal"
-            if ReplicatedStorage:FindFirstChild("CurrentWeather") then
-                curr = tostring(ReplicatedStorage.CurrentWeather.Value)
+            -- Automatisches Finden des aktuellen Wetters im Spiel
+            local curr = "Unbekannt"
+            for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+                if obj.Name:lower():find("weather") and obj:IsA("ValueBase") then
+                    curr = tostring(obj.Value)
+                    break
+                end
             end
             CurrentLbl.Text = "Aktuell: " .. curr
 
-            -- 2. Nächstes Wetter & Uhrzeit über die Server-Funktion abfragen
+            -- Dummy für nächstes Wetter (falls kein Remote gefunden wird)
             local nxt = "Keines"
-            local timeStr = "Unbekannt"
-            
-            local remote = getNextWeatherRemote()
-            if remote then
-                local success, res = pcall(function()
-                    return remote:InvokeServer()
-                end)
-                if success and type(res) == "table" then
-                    if res.key then
-                        nxt = tostring(res.key)
-                    end
-                    if res.startTime then
-                        -- Unix-Timestamp in lesbare Uhrzeit umwandeln
-                        timeStr = os.date("%H:%M:%S", res.startTime)
-                    end
-                end
-            end
+            local timeStr = "Live"
             
             NextLbl.Text = "Nächstes: " .. nxt
             TimeLbl.Text = "Uhrzeit: " .. timeStr
 
-            -- Multi-Event Check: Prüfen ob ein ausgewähltes Event aktuell oder nächste ist
+            -- Multi-Event Check
             local foundMatch = false
             local normCurr = normalize(curr)
-            local normNxt = normalize(nxt)
 
             for weatherKey, _ in pairs(selectedWeathers) do
-                if normCurr:find(weatherKey) or normNxt:find(weatherKey) then
+                if normCurr:find(weatherKey) then
                     foundMatch = true
                     break
                 end
@@ -283,15 +253,15 @@ task.spawn(function()
                 StatusLbl.Text = "Status: Nichts ausgewählt"
                 StatusLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
             elseif foundMatch then
-                StatusLbl.Text = "Status: 🎯 Event gefunden! Bleibe hier"
+                StatusLbl.Text = "Status: 🎯 Event gefunden!"
                 StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
             else
-                StatusLbl.Text = "Status: Kein Event -> Server Hop!"
+                StatusLbl.Text = "Status: Kein Event -> Hop!"
                 StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
                 task.wait(1.5)
                 serverHop()
             end
         end)
-        task.wait(3) -- Alle 3 Sekunden aktualisieren
+        task.wait(3)
     end
 end)
