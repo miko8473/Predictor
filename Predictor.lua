@@ -1,5 +1,5 @@
 -- ===================================================
--- V14.7: SPIRIT FRUIT MASTER - CYBER COMPACT EDITION
+-- V28: SPIRIT FRUIT MASTER - SEQUENTIAL WEATHER & PHASE 2 WAIT
 -- ===================================================
 
 local Players = game:GetService("Players")
@@ -10,9 +10,9 @@ local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 
-print("[V14.7] Gestartet. Initiale JobId:", game.JobId)
+print("[V28] Gestartet. Initiale JobId:", game.JobId)
 
--- Feste Reihenfolge der Wetter- und Mutationszuordnungen
+-- Die 6 echten Wetter-Mutationen (Streng für Phase 1)
 local WEATHER_ORDER = {
     {weather = "Misty",         mutation = "Dewy"},
     {weather = "Sandstorm",     mutation = "Dusty"},
@@ -22,9 +22,13 @@ local WEATHER_ORDER = {
     {weather = "Meteor Shower", mutation = "Cosmic"}
 }
 
--- Globale Steuerung & Teleport-Lock
-local autoHopEnabled = false
+local REQUIRED_WEATHER_COUNT = #WEATHER_ORDER -- 6
+
+-- Globale Steuerung & Guards
+local autoHopEnabled = true
 local teleporting = false
+local setCompleted = false
+local collectedTriggered = false
 
 -- Altes GUI aufräumen, falls vorhanden
 local container = (pcall(function() return CoreGui end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
@@ -32,14 +36,14 @@ if container:FindFirstChild("SpiritFruitMonitorGUI") then
     container.SpiritFruitMonitorGUI:Destroy()
 end
 
--- GUI Erstellen (Ultra-Kompakt & Cyber-Style)
+-- GUI Erstellen
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SpiritFruitMonitorGUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = container
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 360, 0, 320)
+mainFrame.Size = UDim2.new(0, 360, 0, 330)
 mainFrame.Position = UDim2.new(0, 25, 0, 80)
 mainFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
 mainFrame.BorderSizePixel = 0
@@ -67,7 +71,6 @@ local headerCorner = Instance.new("UICorner")
 headerCorner.CornerRadius = UDim.new(0, 12)
 headerCorner.Parent = header
 
--- Korrektur, damit die unteren Ecken des Headers nicht abgerundet sind
 local headerFix = Instance.new("Frame")
 headerFix.Size = UDim2.new(1, 0, 0, 6)
 headerFix.Position = UDim2.new(0, 0, 1, -6)
@@ -79,7 +82,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -16, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "⚡ SPIRIT FRUIT MASTER <font color='#8888aa'>V14.7</font>"
+titleLabel.Text = "⚡ SPIRIT FRUIT MASTER <font color='#8888aa'>V28 (Sequential)</font>"
 titleLabel.RichText = true
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
@@ -87,7 +90,7 @@ titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = header
 
--- Container für Inhalt (mit Padding)
+-- Container für Inhalt
 local contentContainer = Instance.new("Frame")
 contentContainer.Size = UDim2.new(1, -20, 1, -44)
 contentContainer.Position = UDim2.new(0, 10, 0, 40)
@@ -116,7 +119,6 @@ end
 local lblWeather = createRow("LblWeather", 1, 20, 12)
 local lblNextWeather = createRow("LblNextWeather", 2, 20, 12)
 
--- Kleiner Trenner
 local div1 = Instance.new("Frame")
 div1.Size = UDim2.new(1, 0, 0, 1)
 div1.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
@@ -124,7 +126,6 @@ div1.BorderSizePixel = 0
 div1.LayoutOrder = 3
 div1.Parent = contentContainer
 
--- Kompakte Frucht-Zeilen
 local fruitLabels = {
     createRow("Fruit1", 4, 18, 11),
     createRow("Fruit2", 5, 18, 11),
@@ -139,30 +140,30 @@ div2.BorderSizePixel = 0
 div2.LayoutOrder = 8
 div2.Parent = contentContainer
 
-local lblTarget = createRow("LblTarget", 9, 20, 11)
+local lblPhase = createRow("LblPhase", 9, 20, 11)
+lblPhase.Font = Enum.Font.GothamBold
+lblPhase.TextColor3 = Color3.fromRGB(100, 200, 255)
+
+local lblTarget = createRow("LblTarget", 10, 20, 11)
 lblTarget.Font = Enum.Font.GothamBold
 lblTarget.TextColor3 = Color3.fromRGB(255, 190, 80)
 
-local lblNeeded = createRow("LblNeeded", 10, 20, 11)
+local lblNeeded = createRow("LblNeeded", 11, 20, 11)
 lblNeeded.Font = Enum.Font.GothamBold
 lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
 
-local lblProgress = createRow("LblProgress", 11, 20, 11)
-lblProgress.Font = Enum.Font.GothamBold
-lblProgress.TextColor3 = Color3.fromRGB(100, 200, 255)
+local lblActionInfo = createRow("LblActionInfo", 12, 18, 10)
+lblActionInfo.TextColor3 = Color3.fromRGB(200, 100, 100)
 
-local lblMissingWeathers = createRow("LblMissingWeathers", 12, 18, 10)
-lblMissingWeathers.TextColor3 = Color3.fromRGB(200, 100, 100)
-
--- Ultra-Sleek Auto-Hop Button
+-- Auto-Hop Button
 local hopButton = Instance.new("TextButton")
 hopButton.Size = UDim2.new(1, 0, 0, 30)
 hopButton.LayoutOrder = 13
-hopButton.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
+hopButton.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
 hopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 hopButton.TextSize = 12
 hopButton.Font = Enum.Font.GothamBold
-hopButton.Text = "Auto-Hop: AUS"
+hopButton.Text = "Auto-Hop: AN (Sequential Mode)"
 hopButton.Parent = contentContainer
 
 local btnCorner = Instance.new("UICorner")
@@ -170,27 +171,25 @@ btnCorner.CornerRadius = UDim.new(0, 8)
 btnCorner.Parent = hopButton
 
 hopButton.MouseButton1Click:Connect(function()
+    if setCompleted then return end
     autoHopEnabled = not autoHopEnabled
 
     if autoHopEnabled then
         teleporting = false
         hopButton.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-        hopButton.Text = "Auto-Hop: AN (Bereit)"
+        hopButton.Text = "Auto-Hop: AN (Sequential Mode)"
     else
         teleporting = false
         hopButton.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
-        hopButton.Text = "Auto-Hop: AUS"
+        hopButton.Text = "Auto-Hop: AUS (Manuell gestoppt)"
     end
 end)
 
--- Hilfsfunktion zum Zurücksetzen
-local function resetUIState(targetText, neededText, progressText, missingText)
+local function resetUIState(phaseText, targetText, neededText, actionText)
+    lblPhase.Text = phaseText
     lblTarget.Text = targetText
     lblNeeded.Text = neededText
-    lblProgress.Text = progressText or "Fortschritt: --/24"
-    lblMissingWeathers.Text = missingText or "Fehlend: -"
-    lblTarget.TextColor3 = Color3.fromRGB(180, 180, 180)
-    lblNeeded.TextColor3 = Color3.fromRGB(180, 180, 180)
+    lblActionInfo.Text = actionText or "Status: -"
     for i = 1, 4 do
         fruitLabels[i].Text = string.format("Frucht %d: Warten...", i)
         fruitLabels[i].TextColor3 = Color3.fromRGB(120, 120, 140)
@@ -224,36 +223,6 @@ end
 
 -- Wetter-Erkennung (Nächstes)
 local function getNextWeather()
-    local packages = ReplicatedStorage:FindFirstChild("Packages")
-    if packages then
-        local indexFolder = packages:FindFirstChild("_Index")
-        if indexFolder then
-            for _, pkg in ipairs(indexFolder:GetChildren()) do
-                if pkg.Name:lower():sub(1, 9) == "sleitnick" then
-                    local knit = pkg:FindFirstChild("knit") or pkg:FindFirstChild("Knit")
-                    if knit then
-                        local services = knit:FindFirstChild("Services")
-                        if services then
-                            local weatherService = services:FindFirstChild("WeatherService")
-                            if weatherService then
-                                local rfFolder = weatherService:FindFirstChild("RF") or weatherService:FindFirstChild("Remotes")
-                                local rf = (rfFolder and rfFolder:FindFirstChild("GetNextWeather")) or weatherService:FindFirstChild("GetNextWeather")
-                                if rf and rf:IsA("RemoteFunction") then
-                                    local success, res = pcall(function()
-                                        return rf:InvokeServer()
-                                    end)
-                                    if success and type(res) == "table" then
-                                        return res.key or "Unknown"
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
     for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
         if desc.Name == "GetNextWeather" and desc:IsA("RemoteFunction") then
             local success, res = pcall(function()
@@ -267,27 +236,65 @@ local function getNextWeather()
     return "Unknown"
 end
 
--- Server-Hop mit JobId Debug
+-- Server-Hop
 local function triggerServerHop()
-    if not autoHopEnabled then return end
+    if not autoHopEnabled or setCompleted then return end
     if teleporting then return end
 
     teleporting = true
-    print("[V14.7] 🔄 Starte Serverhop! Vorherige JobId:", game.JobId)
-    hopButton.Text = "Auto-Hop: Wechsle..."
+    print("[V28] 🔄 Starte Serverhop! Vorherige JobId:", game.JobId)
+    hopButton.Text = "Auto-Hop: Wechsle Server..."
 
     local success, err = pcall(function()
         TeleportService:Teleport(game.PlaceId, LocalPlayer)
     end)
 
     if not success then
-        warn("[V14.7] Teleport-Fehler:", err)
+        warn("[V28] Teleport-Fehler:", err)
         teleporting = false
         hopButton.Text = "Auto-Hop: AN (Retry...)"
     end
 end
 
--- Caches
+-- Hilfsfunktion: Findet den Spirit-Baum des Spielers
+local function getPlayerSpiritTree()
+    local playerPlots = Workspace:FindFirstChild("BigField") and Workspace.BigField:FindFirstChild("PlayerPlots")
+    if not playerPlots then return nil end
+
+    local myPlot = nil
+    for _, plot in ipairs(playerPlots:GetChildren()) do
+        if plot:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+            myPlot = plot
+            break
+        end
+    end
+    if not myPlot then return nil end
+
+    for _, child in ipairs(myPlot:GetChildren()) do
+        if child:GetAttribute("SeedType") == "Spirit" then
+            return child
+        end
+    end
+    return nil
+end
+
+-- Automatisch einsammeln per ClickDetector oder ProximityPrompt
+local function triggerCollection(spawnObj)
+    for _, desc in ipairs(spawnObj:GetDescendants()) do
+        if desc:IsA("ClickDetector") then
+            pcall(function()
+                fireclickdetector(desc)
+                print("[V28] 🖱️ ClickDetector ausgelöst für:", spawnObj.Name)
+            end)
+        elseif desc:IsA("ProximityPrompt") then
+            pcall(function()
+                fireproximityprompt(desc)
+                print("[V28] 🧺 ProximityPrompt ausgelöst für:", spawnObj.Name)
+            end)
+        end
+    end
+end
+
 local cachedCurW = "Laden..."
 local cachedNextW = "Laden..."
 
@@ -300,63 +307,44 @@ task.spawn(function()
     end
 end)
 
--- 2. Haupt-Loop für Analyse und UI-Update
+-- 2. Haupt-Loop mit Sequenzieller Logik & Phase 2
 task.spawn(function()
     while screenGui.Parent do
         local ok, err = pcall(function()
             lblWeather.Text = "Aktuell: " .. cachedCurW
             lblNextWeather.Text = "Nächstes: " .. cachedNextW
 
-            local playerPlots = Workspace:FindFirstChild("BigField") and Workspace.BigField:FindFirstChild("PlayerPlots")
-            local myPlot = nil
-            if playerPlots then
-                for _, plot in ipairs(playerPlots:GetChildren()) do
-                    if plot:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
-                        myPlot = plot
-                        break
-                    end
-                end
-            end
-
-            if not myPlot then
-                resetUIState("Ziel: Kein Plot", "Warte auf Plot...")
-                return
-            end
-
-            local spiritTree = nil
-            for _, child in ipairs(myPlot:GetChildren()) do
-                if child:GetAttribute("SeedType") == "Spirit" then
-                    spiritTree = child
-                    break
-                end
-            end
-
+            local spiritTree = getPlayerSpiritTree()
             if not spiritTree then
-                resetUIState("Ziel: Kein Spirit-Baum", "Baum pflanzen...")
+                resetUIState("Phase: Fehler", "Ziel: Kein Spirit-Baum", "Baum pflanzen...")
                 return
             end
 
             local fruitSpawnsFolder = spiritTree:FindFirstChild("FruitSpawns")
             if not fruitSpawnsFolder then
-                resetUIState("Ziel: Spawns fehlen", "Strukturfehler")
+                resetUIState("Phase: Fehler", "Ziel: Spawns fehlen", "Strukturfehler")
                 return
             end
 
-            -- Index-Check 1..4
             local fruitMap = {}
             local uniqueCount = 0
+            local duplicateIndex = nil
+
             for _, obj in ipairs(fruitSpawnsFolder:GetChildren()) do
                 local idx = obj:GetAttribute("SpawnIndex")
-                if typeof(idx) == "number" and idx >= 1 and idx <= 4 and idx % 1 == 0 then
-                    if not fruitMap[idx] then
+                if typeof(idx) == "number" and idx % 1 == 0 and idx >= 1 and idx <= 4 then
+                    if fruitMap[idx] then
+                        duplicateIndex = idx
+                    else
                         fruitMap[idx] = obj
                         uniqueCount = uniqueCount + 1
                     end
                 end
             end
 
-            if uniqueCount ~= 4 then
-                resetUIState("Ziel: Unvollständige Spawns", "Warte auf 1..4...")
+            if uniqueCount ~= 4 or duplicateIndex ~= nil then
+                local reason = duplicateIndex and string.format("Doppelter SpawnIndex %d", duplicateIndex) or "Nicht exakt 1..4"
+                resetUIState("Phase: Fehler", "Ziel: Ungültige Spawns", reason .. " – warte...")
                 return
             end
 
@@ -367,105 +355,143 @@ task.spawn(function()
                 {obj = fruitMap[4], index = 4}
             }
 
-            local totalMissingCount = 0
-            local allCompleted = true
-            local globalNeededWeathers = {}
-            local fruitsNeedingCurrent = {}
-            local fruitsNeedingNext = {}
+            -- Analysiere Wetter-Status für jede Frucht einzeln
+            local fruitWeatherCounts = {}
+            local fruitMissingWeathers = {}
+            local allWeatherComplete = true
 
-            for i, data in ipairs(validSpawns) do
-                local spawnObj = data.obj
+            for i = 1, 4 do
+                local spawnObj = fruitMap[i]
                 local mutationsAttr = spawnObj:GetAttribute("FruitMutations") or ""
-                
-                local foundMutations = {}
-                local uniqueMutationsMap = {}
+                local foundMap = {}
                 for mut in mutationsAttr:gmatch("[^,%s]+") do
-                    if not uniqueMutationsMap[mut:lower()] then
-                        uniqueMutationsMap[mut:lower()] = true
-                        table.insert(foundMutations, mut)
-                    end
+                    foundMap[mut:lower()] = true
                 end
 
-                local missingWeathersForThisFruit = {}
+                local count = 0
+                local missingList = {}
                 for _, entry in ipairs(WEATHER_ORDER) do
-                    local hasMutation = false
-                    local targetMutLower = entry.mutation:lower()
-                    for _, m in ipairs(foundMutations) do
-                        if m:lower() == targetMutLower then
-                            hasMutation = true
-                            break
-                        end
-                    end
-
-                    if not hasMutation then
-                        table.insert(missingWeathersForThisFruit, entry.weather)
-                        totalMissingCount = totalMissingCount + 1
-                        globalNeededWeathers[entry.weather] = true
-
-                        if entry.weather:lower() == cachedCurW:lower() then
-                            table.insert(fruitsNeedingCurrent, string.format("F%d (%s)", i, entry.mutation))
-                        end
-                        if entry.weather:lower() == cachedNextW:lower() then
-                            table.insert(fruitsNeedingNext, string.format("F%d (%s)", i, entry.mutation))
-                        end
+                    if foundMap[entry.mutation:lower()] then
+                        count = count + 1
+                    else
+                        table.insert(missingList, entry)
                     end
                 end
 
-                if #missingWeathersForThisFruit == 0 then
-                    fruitLabels[i].Text = string.format("Frucht %d: Komplett (6/6)", i)
+                fruitWeatherCounts[i] = count
+                fruitMissingWeathers[i] = missingList
+
+                if count < REQUIRED_WEATHER_COUNT then
+                    allWeatherComplete = false
+                end
+
+                if count >= REQUIRED_WEATHER_COUNT then
+                    fruitLabels[i].Text = string.format("Frucht %d: 6/6 Wetter ✅", i)
                     fruitLabels[i].TextColor3 = Color3.fromRGB(100, 255, 100)
                 else
-                    allCompleted = false
-                    fruitLabels[i].Text = string.format("Frucht %d: Fehlen %d Mutationen", i, #missingWeathersForThisFruit)
+                    fruitLabels[i].Text = string.format("Frucht %d: Fehlen %d Wetter", i, #missingList)
                     fruitLabels[i].TextColor3 = Color3.fromRGB(255, 170, 80)
                 end
             end
 
-            local totalAcquired = 24 - totalMissingCount
-            lblProgress.Text = string.format("Fortschritt: %d / 24 Mutationen", totalAcquired)
-
-            if allCompleted then
-                lblTarget.Text = "Ziel: Alle Früchte maxed! 🎉"
-                lblNeeded.Text = "Status: Fertig!"
-                lblTarget.TextColor3 = Color3.fromRGB(100, 255, 100)
-                lblNeeded.TextColor3 = Color3.fromRGB(100, 255, 100)
-                lblMissingWeathers.Text = "Fehlend: Keine"
-            else
-                local missingListFormatted = {}
-                for _, entry in ipairs(WEATHER_ORDER) do
-                    if globalNeededWeathers[entry.weather] then
-                        table.insert(missingListFormatted, entry.weather)
+            -- ==========================================
+            -- PHASE 1: Sequenzielle Wetter-Suche (F1 -> F2 -> F3 -> F4)
+            -- ==========================================
+            if not allWeatherComplete then
+                lblPhase.Text = "Phase 1: Wetter-Sammlung (Frucht-by-Frucht)"
+                
+                -- Finde die erste Frucht, die noch nicht 6/6 Wetter hat
+                local activeFruitIdx = 1
+                for i = 1, 4 do
+                    if fruitWeatherCounts[i] < REQUIRED_WEATHER_COUNT then
+                        activeFruitIdx = i
+                        break
                     end
                 end
-                lblMissingWeathers.Text = "Fehlt: " .. table.concat(missingListFormatted, ", ")
 
-                if #fruitsNeedingCurrent > 0 then
-                    lblTarget.Text = "Ziel: Aktives Wetter nutzen!"
-                    lblNeeded.Text = "Aktion: " .. table.concat(fruitsNeedingCurrent, ", ")
+                local neededWeathers = fruitMissingWeathers[activeFruitIdx]
+                local nextNeededEntry = neededWeathers[1] -- Das nächste genaue Wetter das diese Frucht braucht
+
+                lblTarget.Text = string.format("Ziel: Frucht %d braucht '%s' (%s)", activeFruitIdx, nextNeededEntry.weather, nextNeededEntry.mutation)
+                lblActionInfo.Text = string.format("Fortschritt F%d: %d/6 Wetter", activeFruitIdx, fruitWeatherCounts[activeFruitIdx])
+
+                if cachedCurW:lower() == nextNeededEntry.weather:lower() then
+                    lblNeeded.Text = "Status: Aktives Wetter passt! Warten auf Mutation..."
                     lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
-                elseif #fruitsNeedingNext > 0 then
-                    lblTarget.Text = "Ziel: Nächstes Wetter vorbereiten!"
-                    lblNeeded.Text = "Kommt: " .. table.concat(fruitsNeedingNext, ", ")
+                elseif cachedNextW:lower() == nextNeededEntry.weather:lower() then
+                    lblNeeded.Text = "Status: Nächstes Wetter passt! Bereit machen..."
                     lblNeeded.TextColor3 = Color3.fromRGB(255, 220, 80)
                 else
-                    lblTarget.Text = "Ziel: Kein Wetter passend"
-                    lblNeeded.Text = "Status: Server unbrauchbar -> Hoppe"
+                    lblNeeded.Text = "Status: Wetter unpassend -> Hoppe"
                     lblNeeded.TextColor3 = Color3.fromRGB(220, 100, 100)
 
                     if autoHopEnabled then
                         triggerServerHop()
                     end
                 end
+
+            -- ==========================================
+            -- PHASE 2: Warten auf Huge + Infested (Auto-Hop AUS)
+            -- ==========================================
+            else
+                -- Auto-Hop sofort komplett stoppen in Phase 2
+                autoHopEnabled = false
+                hopButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+                hopButton.Text = "Auto-Hop: GESPERRT (Warte auf Huge/Infested)"
+
+                lblPhase.Text = "Phase 2: Warten auf Huge + Infested"
+                
+                -- Prüfe ob alle 4 Früchte Huge und Infested haben
+                local allHugeInfested = true
+                for i = 1, 4 do
+                    local spawnObj = fruitMap[i]
+                    local mutationsAttr = spawnObj:GetAttribute("FruitMutations") or ""
+                    local foundMap = {}
+                    for mut in mutationsAttr:gmatch("[^,%s]+") do
+                        foundMap[mut:lower()] = true
+                    end
+                    if not (foundMap["huge"] and foundMap["infested"]) then
+                        allHugeInfested = false
+                        break
+                    end
+                end
+
+                if allHugeInfested then
+                    setCompleted = true
+                    lblTarget.Text = "Ziel: Alles komplett (6 Wetter + Huge + Infested)! 🎉"
+                    lblNeeded.Text = "Status: Sammle alle 4 Früchte ein..."
+                    lblTarget.TextColor3 = Color3.fromRGB(100, 255, 100)
+                    lblNeeded.TextColor3 = Color3.fromRGB(100, 255, 100)
+                    lblActionInfo.Text = "Erfolgreich beendet."
+                    
+                    hopButton.Text = "Auto-Hop: GESTOPPT (Fertig eingesammelt)"
+
+                    if not collectedTriggered then
+                        collectedTriggered = true
+                        task.spawn(function()
+                            for _, data in ipairs(validSpawns) do
+                                triggerCollection(data.obj)
+                                task.wait(0.2)
+                            end
+                        end)
+                    end
+                else
+                    lblTarget.Text = "Ziel: Alle 4 Früchte haben 6 Wetter ✅"
+                    lblNeeded.Text = "Status: Warte, bis Huge + Infested da sind..."
+                    lblTarget.TextColor3 = Color3.fromRGB(100, 200, 255)
+                    lblNeeded.TextColor3 = Color3.fromRGB(255, 190, 80)
+                    lblActionInfo.Text = "Kein Hop mehr. Warten auf Standard-Mutationen."
+                end
             end
 
         end)
 
         if not ok then
-            warn("[V14.7] Fehler:", err)
+            warn("[V28] Fehler:", err)
         end
         
         task.wait(1.5)
     end
 end)
 
-print("[V14.7] Spirit Fruit Master Cyber Compact erfolgreich geladen!")
+print("[V28] Spirit Fruit Master (Sequential & Phase 2 Mode) erfolgreich geladen!")
