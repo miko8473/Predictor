@@ -1,4 +1,4 @@
--- Greedy Growers Weather Sniffer & Hopper (Universal Fix)
+-- Greedy Growers Weather Sniffer & Hopper (Debug Screen Version)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -22,7 +22,7 @@ ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 280, 0, 195)
+MainFrame.Size = UDim2.new(0, 280, 0, 215)
 MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 MainFrame.BorderSizePixel = 0
@@ -36,27 +36,28 @@ UICorner.Parent = MainFrame
 
 local function createLabel(posY, text, color)
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -24, 0, 22)
+    lbl.Size = UDim2.new(1, -24, 0, 20)
     lbl.Position = UDim2.new(0, 12, 0, posY)
     lbl.BackgroundTransparency = 1
     lbl.Text = text
     lbl.TextColor3 = color or Color3.fromRGB(255, 255, 255)
-    lbl.TextSize = 13
+    lbl.TextSize = 12
     lbl.Font = Enum.Font.GothamBold
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = MainFrame
     return lbl
 end
 
-local CurrentLbl = createLabel(12, "Aktuell: Verbinde...", Color3.fromRGB(200, 200, 200))
-local NextLbl    = createLabel(38, "Nächstes: Verbinde...", Color3.fromRGB(100, 220, 255))
-local TimeLbl    = createLabel(64, "Uhrzeit: --:--", Color3.fromRGB(255, 220, 100))
-local StatusLbl  = createLabel(90, "Status: Suche Remote...", Color3.fromRGB(250, 200, 100))
+local CurrentLbl = createLabel(10, "Aktuell: Startet...", Color3.fromRGB(200, 200, 200))
+local NextLbl    = createLabel(32, "Nächstes: Suche...", Color3.fromRGB(100, 220, 255))
+local TimeLbl    = createLabel(54, "Uhrzeit: --:--", Color3.fromRGB(255, 220, 100))
+local StatusLbl  = createLabel(76, "Status: Initialisiere...", Color3.fromRGB(250, 200, 100))
+local DebugLbl   = createLabel(98, "Debug: Bereit", Color3.fromRGB(255, 100, 100))
 
 -- Ausklapp-Button ("Suche >")
 local SearchToggleBtn = Instance.new("TextButton")
-SearchToggleBtn.Size = UDim2.new(1, -24, 0, 26)
-SearchToggleBtn.Position = UDim2.new(0, 12, 0, 116)
+SearchToggleBtn.Size = UDim2.new(1, -24, 0, 24)
+SearchToggleBtn.Position = UDim2.new(0, 12, 0, 124)
 SearchToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
 SearchToggleBtn.Text = "  Suche >"
 SearchToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -72,7 +73,7 @@ ToggleCorner.Parent = SearchToggleBtn
 -- Container für die Event-Liste
 local EventContainer = Instance.new("ScrollingFrame")
 EventContainer.Size = UDim2.new(1, -24, 0, 110)
-EventContainer.Position = UDim2.new(0, 12, 0, 148)
+EventContainer.Position = UDim2.new(0, 12, 0, 154)
 EventContainer.BackgroundTransparency = 1
 EventContainer.BorderSizePixel = 0
 EventContainer.Visible = false
@@ -86,12 +87,12 @@ UIListLayout.Parent = EventContainer
 
 -- Server Hop Button
 local HopButton = Instance.new("TextButton")
-HopButton.Size = UDim2.new(1, -24, 0, 32)
-HopButton.Position = UDim2.new(0, 12, 0, 150)
+HopButton.Size = UDim2.new(1, -24, 0, 30)
+HopButton.Position = UDim2.new(0, 12, 0, 156)
 HopButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
 HopButton.Text = "SERVER HOP"
 HopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-HopButton.TextSize = 14
+HopButton.TextSize = 13
 HopButton.Font = Enum.Font.GothamBold
 HopButton.Parent = MainFrame
 
@@ -99,7 +100,7 @@ local ButtonCorner = Instance.new("UICorner")
 ButtonCorner.CornerRadius = UDim.new(0, 8)
 ButtonCorner.Parent = HopButton
 
--- Alle Events aus dem Shop
+-- Alle Events
 local availableWeathers = {
     "Meteor Shower",
     "Acid Rain",
@@ -110,7 +111,6 @@ local availableWeathers = {
     "Lucky River"
 }
 
--- Standardmäßig Meteor ausgewählt
 local selectedWeathers = {
     ["meteor shower"] = true
 }
@@ -165,13 +165,13 @@ SearchToggleBtn.MouseButton1Click:Connect(function()
     if isExpanded then
         SearchToggleBtn.Text = "  Suche v"
         EventContainer.Visible = true
-        MainFrame.Size = UDim2.new(0, 280, 0, 310)
-        HopButton.Position = UDim2.new(0, 12, 0, 264)
+        MainFrame.Size = UDim2.new(0, 280, 0, 315)
+        HopButton.Position = UDim2.new(0, 12, 0, 272)
     else
         SearchToggleBtn.Text = "  Suche >"
         EventContainer.Visible = false
-        MainFrame.Size = UDim2.new(0, 280, 0, 195)
-        HopButton.Position = UDim2.new(0, 12, 0, 150)
+        MainFrame.Size = UDim2.new(0, 280, 0, 215)
+        HopButton.Position = UDim2.new(0, 12, 0, 156)
     end
 end)
 
@@ -202,41 +202,17 @@ end
 
 HopButton.MouseButton1Click:Connect(serverHop)
 
--- UNIVERSALE SUCHE (Findet den Remote-Befehl im ganzen Spiel)
-local function getNextWeatherRemote()
-    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-        if obj.Name == "GetNextWeather" and obj:IsA("RemoteFunction") then
-            return obj
-        end
-    end
-    return nil
-end
-
 local function normalize(str)
     return tostring(str):lower():gsub("^%s+", ""):gsub("%s+$", "")
 end
 
--- Live Überwachung starten
+-- Live Überwachung mit direktem Fehlerschutz auf dem Bildschirm
 task.spawn(function()
     task.wait(1)
-    local remote = nil
     
-    -- Sucht so lange, bis der Remote-Befehl gefunden wurde
-    while not remote do
-        remote = getNextWeatherRemote()
-        if not remote then
-            StatusLbl.Text = "Status: Suche Remote..."
-            StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 100)
-            task.wait(2)
-        else
-            StatusLbl.Text = "Status: Verbunden!"
-            StatusLbl.TextColor3 = Color3.fromRGB(100, 255, 150)
-        end
-    end
-
     while true do
-        pcall(function()
-            -- 1. Aktuelles Wetter dynamisch im Spiel finden
+        local success, err = pcall(function()
+            -- 1. Aktuelles Wetter suchen
             local curr = "Normal"
             for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 if obj.Name == "CurrentWeather" and obj:IsA("ValueBase") then
@@ -246,27 +222,32 @@ task.spawn(function()
             end
             CurrentLbl.Text = "Aktuell: " .. curr
 
-            -- 2. Nächstes Wetter über den gefundenen Remote-Befehl abrufen
+            -- 2. Nächstes Wetter über Knit / Remote suchen
             local nxt = "Keines"
             local timeStr = "Unbekannt"
             
-            local success, res = pcall(function()
-                return remote:InvokeServer()
-            end)
-            
-            if success and type(res) == "table" then
-                if res.key then
-                    nxt = tostring(res.key)
+            local remote = nil
+            for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+                if obj.Name == "GetNextWeather" and obj:IsA("RemoteFunction") then
+                    remote = obj
+                    break
                 end
-                if res.startTime then
-                    timeStr = os.date("%H:%M:%S", res.startTime)
+            end
+
+            if remote then
+                local resSuccess, res = pcall(function()
+                    return remote:InvokeServer()
+                end)
+                if resSuccess and type(res) == "table" then
+                    if res.key then nxt = tostring(res.key) end
+                    if res.startTime then timeStr = os.date("%H:%M:%S", res.startTime) end
                 end
             end
             
             NextLbl.Text = "Nächstes: " .. nxt
             TimeLbl.Text = "Uhrzeit: " .. timeStr
 
-            -- Prüfen ob eines der angekreuzten Events aktiv oder das nächste ist
+            -- Prüfen
             local foundMatch = false
             local normCurr = normalize(curr)
             local normNxt = normalize(nxt)
@@ -293,7 +274,17 @@ task.spawn(function()
                 task.wait(1.5)
                 serverHop()
             end
+            
+            DebugLbl.Text = "Debug: Läuft perfekt"
+            DebugLbl.TextColor3 = Color3.fromRGB(100, 255, 100)
         end)
+
+        -- Falls ein Fehler auftaucht, zeigt er ihn direkt auf dem Handy-Bildschirm an!
+        if not success then
+            DebugLbl.Text = "Fehler: " .. tostring(err):sub(1, 30)
+            DebugLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+        end
+        
         task.wait(3)
     end
 end)
