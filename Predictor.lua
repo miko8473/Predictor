@@ -1,4 +1,4 @@
--- Greedy Growers Weather Sniffer & Hopper (Mit Auto-Hop)
+-- Greedy Growers Weather Sniffer & Hopper
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -53,10 +53,42 @@ local NextLbl    = createLabel(38, "Nächstes: Lädt...", Color3.fromRGB(100, 22
 local TimeLbl    = createLabel(64, "Uhrzeit: Lädt...", Color3.fromRGB(255, 220, 100))
 local StatusLbl  = createLabel(90, "Status: Bereit", Color3.fromRGB(150, 255, 150))
 
+-- Ausklapp-Button ("Suche >") für das Menü
+local SearchToggleBtn = Instance.new("TextButton")
+SearchToggleBtn.Size = UDim2.new(1, -24, 0, 24)
+SearchToggleBtn.Position = UDim2.new(0, 12, 0, 116)
+SearchToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+SearchToggleBtn.Text = "Suche  >"
+SearchToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchToggleBtn.TextSize = 12
+SearchToggleBtn.Font = Enum.Font.GothamBold
+SearchToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
+SearchToggleBtn.Parent = MainFrame
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 6)
+ToggleCorner.Parent = SearchToggleBtn
+
+-- Container für die Event-Liste (Standardmäßig eingeklappt)
+local EventContainer = Instance.new("ScrollingFrame")
+EventContainer.Size = UDim2.new(1, -24, 0, 100)
+EventContainer.Position = UDim2.new(0, 12, 0, 146)
+EventContainer.BackgroundTransparency = 1
+EventContainer.BorderSizePixel = 0
+EventContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+EventContainer.ScrollBarThickness = 4
+EventContainer.Visible = false
+EventContainer.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutIndex
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.Parent = EventContainer
+
 -- Server Hop Button
 local HopButton = Instance.new("TextButton")
-HopButton.Size = UDim2.new(1, -24, 0, 35)
-HopButton.Position = UDim2.new(0, 12, 0, 125)
+HopButton.Size = UDim2.new(1, -24, 0, 32)
+HopButton.Position = UDim2.new(0, 12, 0, 145)
 HopButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
 HopButton.Text = "SERVER HOP"
 HopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -68,9 +100,87 @@ local ButtonCorner = Instance.new("UICorner")
 ButtonCorner.CornerRadius = UDim.new(0, 8)
 ButtonCorner.Parent = HopButton
 
+-- Liste aller auswählbaren Events
+local availableWeathers = {
+    "Meteor Shower",
+    "Acid Rain",
+    "Blizzard",
+    "Sandstorm",
+    "Misty",
+    "Rainbow",
+    "Lucky River"
+}
+
+-- Standardmäßig ist Meteor Shower ausgewählt
+local selectedWeathers = {
+    ["meteor shower"] = true
+}
+
+-- Checkboxen für jedes Event generieren
+for i, weatherName in ipairs(availableWeathers) do
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 22)
+    row.BackgroundTransparency = 1
+    row.LayoutOrder = i
+    row.Parent = EventContainer
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -24, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = weatherName
+    lbl.TextColor3 = Color3.fromRGB(220, 220, 220)
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local checkbox = Instance.new("TextButton")
+    checkbox.Size = UDim2.new(0, 16, 0, 16)
+    checkbox.Position = UDim2.new(1, -16, 0.5, -8)
+    checkbox.BackgroundColor3 = selectedWeathers[weatherName:lower()] and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(50, 50, 65)
+    checkbox.Text = ""
+    checkbox.Parent = row
+
+    local cbCorner = Instance.new("UICorner")
+    cbCorner.CornerRadius = UDim.new(0, 4)
+    cbCorner.Parent = checkbox
+
+    checkbox.MouseButton1Click:Connect(function()
+        local key = weatherName:lower()
+        if selectedWeathers[key] then
+            selectedWeathers[key] = nil
+            checkbox.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+        else
+            selectedWeathers[key] = true
+            checkbox.BackgroundColor3 = Color3.fromRGB(100, 220, 255)
+        end
+    end)
+end
+
+UIListLayout.AbsoluteContentSizeChanged:Connect(function(size)
+    EventContainer.CanvasSize = UDim2.new(0, 0, 0, size.Y)
+end)
+
+-- Ein- und Ausklapp-Logik für den Pfeil
+local isExpanded = false
+SearchToggleBtn.MouseButton1Click:Connect(function()
+    isExpanded = not isExpanded
+    if isExpanded then
+        SearchToggleBtn.Text = "Suche  v"
+        EventContainer.Visible = true
+        MainFrame.Size = UDim2.new(0, 280, 0, 260)
+        HopButton.Position = UDim2.new(0, 12, 0, 220)
+    else
+        SearchToggleBtn.Text = "Suche  >"
+        EventContainer.Visible = false
+        MainFrame.Size = UDim2.new(0, 280, 0, 185)
+        HopButton.Position = UDim2.new(0, 12, 0, 145)
+    end
+end)
+
 -- Server-Hop Funktion
 local function serverHop()
-    StatusLbl.Text = "Status: Kein Meteor -> Server Hop!"
+    StatusLbl.Text = "Status: Suche neuen Server..."
     StatusLbl.TextColor3 = Color3.fromRGB(255, 150, 0)
     pcall(function()
         local servers = {}
@@ -118,9 +228,9 @@ local function normalize(str)
     return tostring(str):lower():gsub("^%s+", ""):gsub("%s+$", "")
 end
 
--- Live-Aktualisierung und automatische Hop-Logik
+-- Live-Aktualisierung im Hintergrund
 task.spawn(function()
-    task.wait(2) -- Kurz warten, bis das Spiel geladen ist
+    task.wait(2)
     
     while true do
         pcall(function()
@@ -154,19 +264,34 @@ task.spawn(function()
             NextLbl.Text = "Nächstes: " .. nxt
             TimeLbl.Text = "Uhrzeit: " .. timeStr
 
-            -- Automatische Prüfung: Meteor da (aktuell oder nächste)?
-            if normalize(curr):find("meteor") or normalize(nxt):find("meteor") then
-                StatusLbl.Text = "Status: 🎯 Meteor gefunden! Bleibe hier!"
+            -- Multi-Event Check: Prüfen ob ein ausgewähltes Event aktuell oder nächste ist
+            local foundMatch = false
+            local normCurr = normalize(curr)
+            local normNxt = normalize(nxt)
+
+            for weatherKey, _ in pairs(selectedWeathers) do
+                if normCurr:find(weatherKey) or normNxt:find(weatherKey) then
+                    foundMatch = true
+                    break
+                end
+            end
+
+            local count = 0
+            for _ in pairs(selectedWeathers) do count = count + 1 end
+
+            if count == 0 then
+                StatusLbl.Text = "Status: Nichts ausgewählt"
+                StatusLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+            elseif foundMatch then
+                StatusLbl.Text = "Status: 🎯 Event gefunden! Bleibe hier"
                 StatusLbl.TextColor3 = Color3.fromRGB(80, 255, 120)
-                return -- Skript bleibt in diesem Server und hört auf zu prüfen
             else
-                StatusLbl.Text = "Status: Kein Meteor -> Server Hop!"
+                StatusLbl.Text = "Status: Kein Event -> Server Hop!"
                 StatusLbl.TextColor3 = Color3.fromRGB(255, 120, 120)
                 task.wait(1.5)
                 serverHop()
-                return
             end
         end)
-        task.wait(3)
+        task.wait(3) -- Alle 3 Sekunden aktualisieren
     end
 end)
