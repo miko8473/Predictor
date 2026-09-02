@@ -1,8 +1,6 @@
 --// GREEDY GROWERS
---// AUTO FARM MUTATIONS
---// EXACT NEXT WEATHER + EXACT START TIME
---// AUTO SERVER HOP
---// SAVED SETTINGS
+--// AUTO FARM ALL FRUIT MAX MUTATIONS + WEATHER HOP
+--// SAVED SETTINGS & PERSISTENT STATE
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -10,12 +8,13 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
 --==================================================
--- EVENTS
+-- EVENTS & MUTATIONS CONFIG
 --==================================================
 
 local EVENTS = {
@@ -29,13 +28,13 @@ local EVENTS = {
 }
 
 local Selected = {}
-
 for _, eventName in ipairs(EVENTS) do
-    Selected[eventName] = false
+    Selected[eventName] = true -- Standardmäßig alle für Wetter-Hop aktivieren
 end
 
 local Running = false
 local Hopping = false
+local AutoMaxMutationsRunning = false
 
 local LastNextWeather = nil
 local LastNextTime = "--"
@@ -44,21 +43,20 @@ local LastNextTime = "--"
 -- SAVED SETTINGS
 --==================================================
 
-local SETTINGS_KEY = "GreedyGrowersAutoFarmSettings"
+local SETTINGS_KEY = "GreedyGrowersMaxMutationsSettingsV1"
 
 pcall(function()
     local saved = TeleportService:GetTeleportSetting(SETTINGS_KEY)
-
     if type(saved) == "table" then
         if type(saved.Selected) == "table" then
             for _, eventName in ipairs(EVENTS) do
-                if saved.Selected[eventName] == true then
-                    Selected[eventName] = true
+                if saved.Selected[eventName] ~= nil then
+                    Selected[eventName] = saved.Selected[eventName]
                 end
             end
         end
-
-        if saved.Running == true then
+        if saved.AutoMaxRunning == true then
+            AutoMaxMutationsRunning = true
             Running = true
         end
     end
@@ -67,14 +65,9 @@ end)
 local function saveSettings()
     pcall(function()
         local data = {
-            Selected = {},
-            Running = Running
+            Selected = Selected,
+            AutoMaxRunning = AutoMaxMutationsRunning
         }
-
-        for _, eventName in ipairs(EVENTS) do
-            data.Selected[eventName] = Selected[eventName] == true
-        end
-
         TeleportService:SetTeleportSetting(SETTINGS_KEY, data)
     end)
 end
@@ -101,7 +94,7 @@ pcall(function()
 end)
 
 --==================================================
--- GUI
+-- GUI SETUP
 --==================================================
 
 local Gui = Instance.new("ScreenGui")
@@ -111,8 +104,8 @@ Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 Gui.Parent = CoreGui
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.fromOffset(350, 475)
-Main.Position = UDim2.new(0.5, -175, 0.5, -237)
+Main.Size = UDim2.fromOffset(350, 530)
+Main.Position = UDim2.new(0.5, -175, 0.5, -265)
 Main.BackgroundColor3 = Color3.fromRGB(15, 17, 22)
 Main.BorderSizePixel = 0
 Main.Parent = Gui
@@ -128,7 +121,7 @@ MainStroke.Transparency = 0.35
 MainStroke.Parent = Main
 
 --==================================================
--- DRAG
+-- DRAG LOGIC
 --==================================================
 
 local dragging = false
@@ -151,7 +144,6 @@ end)
 
 UserInputService.InputChanged:Connect(function(input)
     if not dragging then return end
-
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         local delta = input.Position - dragStart
         Main.Position = UDim2.new(
@@ -164,7 +156,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 --==================================================
--- TITLE
+-- TITLE & HEADER
 --==================================================
 
 local Title = Instance.new("TextLabel")
@@ -182,7 +174,7 @@ local Subtitle = Instance.new("TextLabel")
 Subtitle.Size = UDim2.new(1, -30, 0, 20)
 Subtitle.Position = UDim2.fromOffset(15, 39)
 Subtitle.BackgroundTransparency = 1
-Subtitle.Text = "WEATHER AUTO FARM"
+Subtitle.Text = "WEATHER & MUTATION AUTO FARM"
 Subtitle.Font = Enum.Font.GothamMedium
 Subtitle.TextSize = 10
 Subtitle.TextColor3 = Color3.fromRGB(125, 132, 145)
@@ -195,7 +187,7 @@ Subtitle.Parent = Main
 
 local function createCard(y, title)
     local card = Instance.new("Frame")
-    card.Size = UDim2.new(1, -30, 0, 75)
+    card.Size = UDim2.new(1, -30, 0, 70)
     card.Position = UDim2.fromOffset(15, y)
     card.BackgroundColor3 = Color3.fromRGB(21, 24, 31)
     card.BorderSizePixel = 0
@@ -206,31 +198,31 @@ local function createCard(y, title)
     corner.Parent = card
 
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 0, 20)
-    label.Position = UDim2.fromOffset(10, 8)
+    label.Size = UDim2.new(1, -20, 0, 18)
+    label.Position = UDim2.fromOffset(10, 6)
     label.BackgroundTransparency = 1
     label.Text = title
     label.Font = Enum.Font.GothamMedium
-    label.TextSize = 10
+    label.TextSize = 9
     label.TextColor3 = GREY
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = card
 
     local value = Instance.new("TextLabel")
-    value.Size = UDim2.fromOffset(125, 30)
-    value.Position = UDim2.fromOffset(10, 28)
+    value.Size = UDim2.fromOffset(125, 26)
+    value.Position = UDim2.fromOffset(10, 24)
     value.BackgroundTransparency = 1
     value.Text = "..."
     value.Font = Enum.Font.GothamBold
-    value.TextSize = 16
+    value.TextSize = 15
     value.TextColor3 = WHITE
     value.TextXAlignment = Enum.TextXAlignment.Left
     value.TextTruncate = Enum.TextTruncate.AtEnd
     value.Parent = card
 
     local result = Instance.new("TextLabel")
-    result.Size = UDim2.new(1, -145, 0, 30)
-    result.Position = UDim2.fromOffset(140, 28)
+    result.Size = UDim2.new(1, -140, 0, 36)
+    result.Position = UDim2.fromOffset(135, 24)
     result.BackgroundTransparency = 1
     result.Text = ""
     result.Font = Enum.Font.GothamBold
@@ -243,16 +235,12 @@ local function createCard(y, title)
     return card, value, result
 end
 
-local CurrentCard, CurrentValue, CurrentResult = createCard(70, "CURRENT WEATHER")
-local NextCard, NextValue, NextResult = createCard(153, "NEXT WEATHER")
-
---==================================================
--- NEXT START TIME
---==================================================
+local CurrentCard, CurrentValue, CurrentResult = createCard(65, "CURRENT WEATHER")
+local NextCard, NextValue, NextResult = createCard(140, "NEXT WEATHER")
 
 local NextStart = Instance.new("TextLabel")
-NextStart.Size = UDim2.new(1, -30, 0, 18)
-NextStart.Position = UDim2.fromOffset(15, 230)
+NextStart.Size = UDim2.new(1, -30, 0, 16)
+NextStart.Position = UDim2.fromOffset(15, 212)
 NextStart.BackgroundTransparency = 1
 NextStart.Text = "Start: --"
 NextStart.Font = Enum.Font.GothamMedium
@@ -262,92 +250,55 @@ NextStart.TextXAlignment = Enum.TextXAlignment.Left
 NextStart.Parent = Main
 
 --==================================================
--- AUTOFARM HEADER
+-- NEW SECTION: AUTO FARM ALL FRUIT MAX MUTATIONS
 --==================================================
 
-local AutoHeader = Instance.new("TextButton")
-AutoHeader.Size = UDim2.new(1, -30, 0, 34)
-AutoHeader.Position = UDim2.fromOffset(15, 253)
-AutoHeader.BackgroundColor3 = Color3.fromRGB(25, 28, 36)
-AutoHeader.BorderSizePixel = 0
-AutoHeader.Text = ""
-AutoHeader.AutoButtonColor = false
-AutoHeader.Parent = Main
+local TargetHeader = Instance.new("TextLabel")
+TargetHeader.Size = UDim2.new(1, -30, 0, 18)
+TargetHeader.Position = UDim2.fromOffset(15, 232)
+TargetHeader.BackgroundTransparency = 1
+TargetHeader.Text = "autofarm all fruit max mutations"
+TargetHeader.Font = Enum.Font.GothamBold
+TargetHeader.TextSize = 11
+TargetHeader.TextColor3 = Color3.fromRGB(210, 215, 225)
+TargetHeader.TextXAlignment = Enum.TextXAlignment.Left
+TargetHeader.Parent = Main
 
-local AutoCorner = Instance.new("UICorner")
-AutoCorner.CornerRadius = UDim.new(0, 9)
-AutoCorner.Parent = AutoHeader
+local StartMaxButton = Instance.new("TextButton")
+StartMaxButton.Size = UDim2.new(1, -30, 0, 36)
+StartMaxButton.Position = UDim2.fromOffset(15, 252)
+StartMaxButton.BackgroundColor3 = AutoMaxMutationsRunning and Color3.fromRGB(50, 150, 80) or Color3.fromRGB(35, 39, 49)
+StartMaxButton.BorderSizePixel = 0
+StartMaxButton.Text = AutoMaxMutationsRunning and "STOP" or "START"
+StartMaxButton.Font = Enum.Font.GothamBold
+StartMaxButton.TextSize = 12
+StartMaxButton.TextColor3 = Color3.fromRGB(235, 238, 244)
+StartMaxButton.AutoButtonColor = false
+StartMaxButton.Parent = Main
 
-local AutoTitle = Instance.new("TextLabel")
-AutoTitle.Size = UDim2.new(1, -70, 1, 0)
-AutoTitle.Position = UDim2.fromOffset(12, 0)
-AutoTitle.BackgroundTransparency = 1
-AutoTitle.Text = "AutoFarm Mutations"
-AutoTitle.Font = Enum.Font.GothamBold
-AutoTitle.TextSize = 12
-AutoTitle.TextColor3 = Color3.fromRGB(235, 238, 244)
-AutoTitle.TextXAlignment = Enum.TextXAlignment.Left
-AutoTitle.Parent = AutoHeader
-
-local CountLabel = Instance.new("TextLabel")
-CountLabel.Size = UDim2.fromOffset(45, 34)
-CountLabel.Position = UDim2.new(1, -70, 0, 0)
-CountLabel.BackgroundTransparency = 1
-CountLabel.Text = "0/7"
-CountLabel.Font = Enum.Font.GothamBold
-CountLabel.TextSize = 10
-CountLabel.TextColor3 = Color3.fromRGB(125, 132, 145)
-CountLabel.Parent = AutoHeader
-
-local Arrow = Instance.new("TextLabel")
-Arrow.Size = UDim2.fromOffset(20, 34)
-Arrow.Position = UDim2.new(1, -27, 0, 0)
-Arrow.BackgroundTransparency = 1
-Arrow.Text = ">"
-Arrow.Font = Enum.Font.GothamBold
-Arrow.TextSize = 16
-Arrow.TextColor3 = Color3.fromRGB(200, 205, 215)
-Arrow.Parent = AutoHeader
+local StartMaxCorner = Instance.new("UICorner")
+StartMaxCorner.CornerRadius = UDim.new(0, 10)
+StartMaxCorner.Parent = StartMaxButton
 
 --==================================================
--- START / STOP
---==================================================
-
-local StartButton = Instance.new("TextButton")
-StartButton.Size = UDim2.new(1, -30, 0, 38)
-StartButton.Position = UDim2.fromOffset(15, 292)
-StartButton.BackgroundColor3 = Color3.fromRGB(35, 39, 49)
-StartButton.BorderSizePixel = 0
-StartButton.Text = Running and "STOP" or "START"
-StartButton.Font = Enum.Font.GothamBold
-StartButton.TextSize = 12
-StartButton.TextColor3 = Color3.fromRGB(235, 238, 244)
-StartButton.AutoButtonColor = false
-StartButton.Parent = Main
-
-local StartCorner = Instance.new("UICorner")
-StartCorner.CornerRadius = UDim.new(0, 10)
-StartCorner.Parent = StartButton
-
---==================================================
--- STATUS
+-- STATUS BAR
 --==================================================
 
 local StatusText = Instance.new("TextLabel")
-StatusText.Size = UDim2.new(1, -60, 0, 22)
-StatusText.Position = UDim2.fromOffset(37, 436)
+StatusText.Size = UDim2.new(1, -60, 0, 20)
+StatusText.Position = UDim2.fromOffset(37, 498)
 StatusText.BackgroundTransparency = 1
-StatusText.Text = Running and "RUNNING" or "OFF"
+StatusText.Text = AutoMaxMutationsRunning and "RUNNING (MAX MUTATIONS)" or "OFF"
 StatusText.Font = Enum.Font.GothamBold
 StatusText.TextSize = 10
-StatusText.TextColor3 = Running and GREEN or GREY
+StatusText.TextColor3 = AutoMaxMutationsRunning and GREEN or GREY
 StatusText.TextXAlignment = Enum.TextXAlignment.Left
 StatusText.Parent = Main
 
 local Dot = Instance.new("Frame")
 Dot.Size = UDim2.fromOffset(8, 8)
-Dot.Position = UDim2.fromOffset(18, 443)
-Dot.BackgroundColor3 = Running and GREEN or RED
+Dot.Position = UDim2.fromOffset(18, 504)
+Dot.BackgroundColor3 = AutoMaxMutationsRunning and GREEN or RED
 Dot.BorderSizePixel = 0
 Dot.Parent = Main
 
@@ -356,65 +307,58 @@ DotCorner.CornerRadius = UDim.new(1, 0)
 DotCorner.Parent = Dot
 
 --==================================================
--- EVENT PANEL
+-- EVENT PANEL (DROPDOWN)
 --==================================================
 
+local AutoHeader = Instance.new("TextButton")
+AutoHeader.Size = UDim2.new(1, -30, 0, 30)
+AutoHeader.Position = UDim2.fromOffset(15, 294)
+AutoHeader.BackgroundColor3 = Color3.fromRGB(25, 28, 36)
+AutoHeader.BorderSizePixel = 0
+AutoHeader.Text = ""
+AutoHeader.AutoButtonColor = false
+AutoHeader.Parent = Main
+
+local AutoCorner = Instance.new("UICorner")
+AutoCorner.CornerRadius = UDim.new(0, 8)
+AutoCorner.Parent = AutoHeader
+
+local AutoTitle = Instance.new("TextLabel")
+AutoTitle.Size = UDim2.new(1, -70, 1, 0)
+AutoTitle.Position = UDim2.fromOffset(10, 0)
+AutoTitle.BackgroundTransparency = 1
+AutoTitle.Text = "Weather Filter Settings"
+AutoTitle.Font = Enum.Font.GothamBold
+AutoTitle.TextSize:let = 11
+AutoTitle.TextColor3 = Color3.fromRGB(200, 205, 215)
+AutoTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoTitle.Parent = AutoHeader
+
+local Arrow = Instance.new("TextLabel")
+Arrow.Size = UDim2.fromOffset(20, 30)
+Arrow.Position = UDim2.new(1, -25, 0, 0)
+Arrow.BackgroundTransparency = 1
+Arrow.Text = ">"
+Arrow.Font = Enum.Font.GothamBold
+Arrow.TextSize = 14
+Arrow.TextColor3 = Color3.fromRGB(180, 185, 195)
+Arrow.Parent = AutoHeader
+
 local EventPanel = Instance.new("Frame")
-EventPanel.Size = UDim2.new(1, -30, 0, 138)
-EventPanel.Position = UDim2.fromOffset(15, 335)
+EventPanel.Size = UDim2.new(1, -30, 0, 130)
+EventPanel.Position = UDim2.fromOffset(15, 328)
 EventPanel.BackgroundColor3 = Color3.fromRGB(19, 22, 28)
 EventPanel.BorderSizePixel = 0
+EventPanel.Visible = false
 EventPanel.Parent = Main
 
 local EventCorner = Instance.new("UICorner")
-EventCorner.CornerRadius = UDim.new(0, 10)
+EventCorner.CornerRadius = UDim.new(0, 9)
 EventCorner.Parent = EventPanel
 
---==================================================
--- ALL BUTTON
---==================================================
-
-local AllButton = Instance.new("TextButton")
-AllButton.Size = UDim2.fromOffset(48, 24)
-AllButton.Position = UDim2.fromOffset(8, 7)
-AllButton.BackgroundColor3 = Color3.fromRGB(34, 38, 48)
-AllButton.BorderSizePixel = 0
-AllButton.Text = "ALL"
-AllButton.Font = Enum.Font.GothamBold
-AllButton.TextSize = 9
-AllButton.TextColor3 = Color3.fromRGB(220, 224, 232)
-AllButton.Parent = EventPanel
-
-local AllCorner = Instance.new("UICorner")
-AllCorner.CornerRadius = UDim.new(0, 7)
-AllCorner.Parent = AllButton
-
---==================================================
--- NONE BUTTON
---==================================================
-
-local NoneButton = Instance.new("TextButton")
-NoneButton.Size = UDim2.fromOffset(48, 24)
-NoneButton.Position = UDim2.fromOffset(62, 7)
-NoneButton.BackgroundColor3 = Color3.fromRGB(34, 38, 48)
-NoneButton.BorderSizePixel = 0
-NoneButton.Text = "NONE"
-NoneButton.Font = Enum.Font.GothamBold
-NoneButton.TextSize = 9
-NoneButton.TextColor3 = Color3.fromRGB(220, 224, 232)
-NoneButton.Parent = EventPanel
-
-local NoneCorner = Instance.new("UICorner")
-NoneCorner.CornerRadius = UDim.new(0, 7)
-NoneCorner.Parent = EventPanel
-
---==================================================
--- EVENT SCROLL
---==================================================
-
 local EventScroll = Instance.new("ScrollingFrame")
-EventScroll.Size = UDim2.new(1, -16, 0, 95)
-EventScroll.Position = UDim2.fromOffset(8, 36)
+EventScroll.Size = UDim2.new(1, -12, 1, -10)
+EventScroll.Position = UDim2.fromOffset(6, 5)
 EventScroll.BackgroundTransparency = 1
 EventScroll.BorderSizePixel = 0
 EventScroll.ScrollBarThickness = 3
@@ -425,25 +369,9 @@ local Layout = Instance.new("UIListLayout")
 Layout.Padding = UDim.new(0, 4)
 Layout.Parent = EventScroll
 
---==================================================
--- EVENT BUTTONS
---==================================================
-
 local EventButtons = {}
 
-local function countSelected()
-    local count = 0
-    for _, eventName in ipairs(EVENTS) do
-        if Selected[eventName] then
-            count += 1
-        end
-    end
-    return count
-end
-
 local function refreshButtons()
-    CountLabel.Text = tostring(countSelected()) .. "/7"
-
     for eventName, button in pairs(EventButtons) do
         if Selected[eventName] then
             button.BackgroundColor3 = Color3.fromRGB(55, 90, 65)
@@ -459,7 +387,7 @@ end
 
 for _, eventName in ipairs(EVENTS) do
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -4, 0, 26)
+    button.Size = UDim2.new(1, -4, 0, 24)
     button.BackgroundColor3 = Color3.fromRGB(28, 32, 40)
     button.BorderSizePixel = 0
     button.Text = Selected[eventName] and "✓  " .. eventName or "○  " .. eventName
@@ -470,7 +398,7 @@ for _, eventName in ipairs(EVENTS) do
     button.Parent = EventScroll
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 7)
+    corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = button
 
     EventButtons[eventName] = button
@@ -486,60 +414,42 @@ Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     EventScroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 5)
 end)
 
-AllButton.MouseButton1Click:Connect(function()
-    for _, eventName in ipairs(EVENTS) do
-        Selected[eventName] = true
-    end
-    refreshButtons()
-    saveSettings()
-end)
-
-NoneButton.MouseButton1Click:Connect(function()
-    for _, eventName in ipairs(EVENTS) do
-        Selected[eventName] = false
-    end
-    refreshButtons()
-    saveSettings()
-end)
-
 refreshButtons()
 
---==================================================
--- COLLAPSE
---==================================================
-
-local Expanded = true
-
+local Expanded = false
 AutoHeader.MouseButton1Click:Connect(function()
     Expanded = not Expanded
-
     if Expanded then
-        Arrow.Text = ">"
-        EventPanel.Visible = true
-        Main.Size = UDim2.fromOffset(350, 475)
-    else
         Arrow.Text = "<"
+        EventPanel.Visible = true
+        Main.Size = UDim2.fromOffset(350, 665)
+        EventPanel.Position = UDim2.fromOffset(15, 328)
+        StartMaxButton.Position = UDim2.fromOffset(15, 462)
+        StatusText.Position = UDim2.fromOffset(37, 508)
+        Dot.Position = UDim2.fromOffset(18, 514)
+    else
+        Arrow.Text = ">"
         EventPanel.Visible = false
-        Main.Size = UDim2.fromOffset(350, 335)
+        Main.Size = UDim2.fromOffset(350, 530)
+        StartMaxButton.Position = UDim2.fromOffset(15, 252)
+        StatusText.Position = UDim2.fromOffset(37, 498)
+        Dot.Position = UDim2.fromOffset(18, 504)
     end
 end)
 
 --==================================================
--- EXACT WEATHER REMOTE
+-- WEATHER FUNCTIONS
 --==================================================
 
 local function getNextWeatherRemote()
     local Packages = ReplicatedStorage:FindFirstChild("Packages")
     if not Packages then return nil end
-
     local Index = Packages:FindFirstChild("_Index")
     if not Index then return nil end
 
     for _, child in ipairs(Index:GetChildren()) do
         local childName = string.lower(child.Name)
-        local prefix = "sleitnick_knit"
-
-        if string.sub(childName, 1, #prefix) == prefix then
+        if string.sub(childName, 1, 14) == "sleitnick_knit" then
             local knit = child:FindFirstChild("knit")
             if knit then
                 local Services = knit:FindFirstChild("Services")
@@ -558,39 +468,25 @@ local function getNextWeatherRemote()
             end
         end
     end
-
     return nil
 end
-
---==================================================
--- GET CURRENT WEATHER
---==================================================
 
 local function getCurrentWeather()
     local current = ReplicatedStorage:FindFirstChild("CurrentWeather")
     if not current then return "Normal" end
-
     local value = nil
     pcall(function()
         if current:IsA("ValueBase") then
             value = current.Value
         end
     end)
-
     if value == nil then return "Normal" end
-
     local weather = tostring(value):gsub("^%s+", ""):gsub("%s+$", "")
-
     if weather == "" or weather:lower() == "nil" or weather:lower() == "none" or weather:lower() == "normal" then
         return "Normal"
     end
-
     return weather
 end
-
---==================================================
--- GET EXACT NEXT WEATHER
---==================================================
 
 local function getNextWeather()
     local remote = getNextWeatherRemote()
@@ -625,97 +521,120 @@ local function getNextWeather()
     return nextWeather, startTime
 end
 
---==================================================
--- CHECK SELECTED WEATHER
---==================================================
-
 local function isSelectedWeather(weather)
     if not weather then return false end
-
     local weatherNorm = tostring(weather):lower():gsub("^%s+", ""):gsub("%s+$", "")
-
     for _, eventName in ipairs(EVENTS) do
-        local eventNorm = eventName:lower():gsub("^%s+", ""):gsub("%s+$", "")
-        if weatherNorm == eventNorm then
+        if weatherNorm == eventName:lower() then
             return Selected[eventName] == true
         end
     end
-
     return false
 end
 
 --==================================================
--- UPDATE CURRENT DISPLAY
+-- PLOT & FRUIT LOGIC (MAX MUTATIONS AUTOMATION)
 --==================================================
 
-local function updateCurrentDisplay(current)
-    CurrentValue.Text = current
+-- Hier werden alle erforderlichen Mutationen definiert, die eine Frucht haben muss (Infested und Huge durch Pets)
+local REQUIRED_MUTATIONS = {
+    "Dewy", "Dusty", "Frosted", "Shocked", "Infested", "Radioactive", "Golden", "Cosmic", "HUGE"
+}
 
-    if current == "Normal" then
-        CurrentValue.TextColor3 = WHITE
-        if countSelected() > 0 then
-            CurrentResult.Text = "WAS NOT FOUND BY CURRENT WEATHER"
-            CurrentResult.TextColor3 = RED
-        else
-            CurrentResult.Text = "NO EVENT SELECTED"
-            CurrentResult.TextColor3 = GREY
+local function findMyPlot()
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("PlayerPlots")
+    if not plots then return nil end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local owner = plot:FindFirstChild("Owner") or plot:FindFirstChild("Sign")
+        pcall(function()
+            if owner and (owner.Value == LocalPlayer or owner.Text:find(LocalPlayer.Name)) then
+                return plot
+            end
+        end)
+        if plot.Name == LocalPlayer.Name or plot:FindFirstChild(LocalPlayer.Name) then
+            return plot
         end
-        return
     end
+    return plots:GetChildren()[1] -- Fallback
+end
 
-    if isSelectedWeather(current) then
-        CurrentValue.TextColor3 = GREEN
-        CurrentResult.Text = "FOUND BY CURRENT WEATHER"
-        CurrentResult.TextColor3 = GREEN
-    else
-        CurrentValue.TextColor3 = RED
-        CurrentResult.Text = "WAS NOT FOUND BY CURRENT WEATHER"
-        CurrentResult.TextColor3 = RED
+local function getFruitsFromPlot()
+    local plot = findMyPlot()
+    local fruits = {}
+    if not plot then return fruits end
+
+    -- Sucht nach Pflanzen/Früchten im Plot (angepasst an gängige Tycoon/Bau-Strukturen)
+    for _, obj in ipairs(plot:GetDescendants()) do
+        if obj:IsA("Model") and (obj.Name:lower():find("fruit") or obj.Name:lower():find("plant") or obj:FindFirstChild("Mutations")) then
+            table.insert(fruits, obj)
+        end
     end
+    return fruits
+end
+
+local function getFruitMutations(fruit)
+    local mutationsFound = {}
+    -- Prüft Attribute, Werte oder Unterordner im Modell auf Mutationen
+    for _, desc in ipairs(fruit:GetDescendants()) do
+        for _, req in ipairs(REQUIRED_MUTATIONS) do
+            if desc.Name:lower():find(req:lower()) or (desc:IsA("ValueBase") and tostring(desc.Value):lower():find(req:lower())) then
+                mutationsFound[req] = true
+            end
+        end
+    end
+    return mutationsFound
+end
+
+local function checkAllFruitsHaveMaxMutations()
+    local fruits = getFruitsFromPlot()
+    if #fruits == 0 then return false, "Keine Früchte gefunden" end
+
+    for _, fruit in ipairs(fruits) do
+        local mutations = getFruitMutations(fruit)
+        for _, req in ipairs(REQUIRED_MUTATIONS) do
+            if not mutations[req] then
+                return false, req -- Gibt die erste fehlende Mutation der ersten unvollständigen Frucht zurück!
+            end
+        end
+    end
+    return true, "Alle bereit"
+end
+
+local function harvestAndSellAll()
+    StatusText.Text = "ERNTE & VERKAUFE..."
+    Dot.BackgroundColor3 = YELLOW
+
+    -- Ernte-Logik (Remote oder ProximityPrompt)
+    pcall(function()
+        for _, fruit in ipairs(getFruitsFromPlot()) do
+            local prompt = fruit:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt then
+                fireproximityprompt(prompt)
+            end
+        end
+    end)
+
+    task.wait(1)
+
+    -- Verkauf-Logik (Interaktion mit Verkaufspunkt/Shop)
+    pcall(function()
+        local sellRemote = ReplicatedStorage:FindFirstChild("Events", true):FindFirstChild("Sell") or ReplicatedStorage:FindFirstChild("SellRemote", true)
+        if sellRemote and sellRemote:IsA("RemoteEvent") then
+            sellRemote:FireServer()
+        end
+    end)
 end
 
 --==================================================
--- UPDATE NEXT DISPLAY
---==================================================
-
-local function updateNextDisplay(nextWeather, startTime)
-    if not nextWeather then
-        NextValue.Text = "Lädt..."
-        NextValue.TextColor3 = YELLOW
-        NextResult.Text = "READING NEXT WEATHER..."
-        NextResult.TextColor3 = YELLOW
-        NextStart.Text = "Start: --"
-        return
-    end
-
-    LastNextWeather = nextWeather
-    LastNextTime = startTime or "--"
-
-    NextValue.Text = LastNextWeather
-    NextStart.Text = "Start: " .. LastNextTime
-
-    if isSelectedWeather(nextWeather) then
-        NextValue.TextColor3 = GREEN
-        NextResult.Text = "FOUND BY NEXT WEATHER"
-        NextResult.TextColor3 = GREEN
-    else
-        NextValue.TextColor3 = RED
-        NextResult.Text = "WAS NOT FOUND BY NEXT WEATHER"
-        NextResult.TextColor3 = RED
-    end
-end
-
---==================================================
--- SERVER HOP
+-- SERVER HOP LOGIC
 --==================================================
 
 local function serverHop()
-    if Hopping or not Running then return end
-
+    if Hopping or not AutoMaxMutationsRunning then return end
     saveSettings()
     Hopping = true
 
-    StatusText.Text = "HOPPING..."
+    StatusText.Text = "SERVER HOPPING..."
     Dot.BackgroundColor3 = YELLOW
 
     task.spawn(function()
@@ -740,88 +659,121 @@ local function serverHop()
 
         if #servers == 0 then
             StatusText.Text = "NO SERVER"
-            Dot.BackgroundColor3 = RED
-            Hopping = false
+            Dot.BackgroundColor3, Hopping = RED, false
             return
         end
 
         local target = servers[math.random(1, #servers)]
-
         pcall(function()
             TeleportService:TeleportToPlaceInstance(PlaceId, target, LocalPlayer)
         end)
-
         task.wait(6)
         Hopping = false
     end)
 end
 
 --==================================================
--- START / STOP
+-- START / STOP BUTTON ACTION
 --==================================================
 
-StartButton.MouseButton1Click:Connect(function()
-    if not Running then
-        if countSelected() == 0 then
-            StatusText.Text = "SELECT EVENT"
-            Dot.BackgroundColor3 = YELLOW
-            return
-        end
+StartMaxButton.MouseButton1Click:Connect(function()
+    AutoMaxMutationsRunning = not AutoMaxMutationsRunning
+    Running = AutoMaxMutationsRunning
 
-        Running = true
-        StartButton.Text = "STOP"
-        StatusText.Text = "RUNNING"
+    if AutoMaxMutationsRunning then
+        StartMaxButton.Text = "STOP"
+        StartMaxButton.BackgroundColor3 = Color3.fromRGB(50, 150, 80)
+        StatusText.Text = "RUNNING (MAX MUTATIONS)"
         Dot.BackgroundColor3 = GREEN
-        saveSettings()
     else
-        Running = false
-        Hopping = false
-        StartButton.Text = "START"
+        StartMaxButton.Text = "START"
+        StartMaxButton.BackgroundColor3 = Color3.fromRGB(35, 39, 49)
         StatusText.Text = "OFF"
         Dot.BackgroundColor3 = RED
-        saveSettings()
     end
+    saveSettings()
 end)
 
 --==================================================
--- RIGHT SHIFT
+-- KEYBIND (RIGHT SHIFT)
 --==================================================
 
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
-
     if input.KeyCode == Enum.KeyCode.RightShift then
         Main.Visible = not Main.Visible
     end
 end)
 
 --==================================================
--- MAIN LOOP
+-- MAIN AUTOMATION LOOP
 --==================================================
 
 task.spawn(function()
-    task.wait(2)
+    task.wait(3) -- Kurz warten beim Start
 
     while Gui.Parent do
         local current = getCurrentWeather()
-        updateCurrentDisplay(current)
-
         local nextWeather, startTime = getNextWeather()
-        updateNextDisplay(nextWeather, startTime)
 
-        if not Running then
-            StatusText.Text = "OFF"
-            Dot.BackgroundColor3 = RED
-        elseif countSelected() == 0 then
-            StatusText.Text = "NO EVENT"
-            Dot.BackgroundColor3 = YELLOW
-        elseif isSelectedWeather(current) or isSelectedWeather(nextWeather) then
-            StatusText.Text = "RUNNING"
-            Dot.BackgroundColor3 = GREEN
+        -- UI Aktualisieren für Wetter-Displays
+        CurrentValue.Text = current
+        LastNextWeather = nextWeather
+        LastNextTime = startTime or "--"
+        NextValue.Text = LastNextWeather or "..."
+        NextStart.Text = "Start: " .. LastNextTime
+
+        if isSelectedWeather(current) then
+            CurrentValue.TextColor3 = GREEN
+            CurrentResult.Text = "AKTIVES WETTER PASST"
         else
-            serverHop()
+            CurrentValue.TextColor3 = WHITE
+            CurrentResult.Text = "KEIN ZIELWETTER"
         end
 
-        task.wait(3)
+        if AutoMaxMutationsRunning then
+            local allReady, missingInfo = checkAllFruitsHaveMaxMutations()
+
+            if allReady then
+                -- Wenn alle Früchte alles haben -> Ernten & Verkaufen!
+                harvestAndSellAll()
+                task.wait(5)
+            else
+                -- Prüfen, ob der Frucht ein wetterabhängiges Merkmal fehlt
+                -- missingInfo enthält z.B. das fehlende Wetter wie "Acid Rain" oder "Rainbow"
+                local needsWeather = false
+                for _, eventName in ipairs(EVENTS) do
+                    if missingInfo and missingInfo:lower() == eventName:lower() then
+                        needsWeather = true
+                        break
+                    end
+                end
+
+                if needsWeather then
+                    -- Schauen, ob das benötigte Wetter gerade da ist oder als nächstes kommt
+                    local currentMatches = (current:lower() == missingInfo:lower())
+                    local nextMatches = (nextWeather and nextWeather:lower() == missingInfo:lower())
+
+                    if currentMatches or nextMatches then
+                        StatusText.Text = "WARTE AUF MUTATION (" .. missingInfo .. ")"
+                        Dot.BackgroundColor3 = GREEN
+                        -- Bleiben und warten, bis die Mutation eintrifft
+                    else
+                        StatusText.Text = "SUCHE WETTER: " .. missingInfo
+                        Dot.BackgroundColor3 = YELLOW
+                        serverHop()
+                    end
+                else
+                    -- Wenn es keine wetterabhängige Mutation ist (oder Pets sie holen), einfach weiterlaufen lassen
+                    StatusText.Text = "FARMING (FEHLT: " .. tostring(missingInfo) .. ")"
+                    Dot.BackgroundColor3 = GREEN
+                end
+            end
+        else
+            StatusText.Text = "OFF"
+            Dot.BackgroundColor3 = RED
+        end
+
+        task.wait(4)
     end
 end)
