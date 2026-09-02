@@ -1,19 +1,19 @@
---------------------------------------------------
--- SERVICES
---------------------------------------------------
+```lua
+--// Greedy Growers - Weather Sniffer & Auto Hopper
+--// AutoFarm Mutations mit Auswahl mehrerer Wetter-Events
+--// Kein manueller Server-Hop Button
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
---------------------------------------------------
+--==================================================
 -- SETTINGS
---------------------------------------------------
+--==================================================
 
 local WeatherEvents = {
     "Meteor Shower",
@@ -25,7 +25,6 @@ local WeatherEvents = {
     "Lucky River"
 }
 
--- Ausgewählte Events
 local SelectedEvents = {}
 
 for _, eventName in ipairs(WeatherEvents) do
@@ -35,269 +34,268 @@ end
 local DropdownOpen = false
 local IsHopping = false
 
---------------------------------------------------
--- ALTE GUI ENTFERNEN
---------------------------------------------------
+--==================================================
+-- REMOVE OLD GUI
+--==================================================
 
 pcall(function()
     local oldGui = CoreGui:FindFirstChild("WeatherHopperGui")
-
     if oldGui then
         oldGui:Destroy()
     end
 end)
 
---------------------------------------------------
--- SCREEN GUI
---------------------------------------------------
+--==================================================
+-- GUI
+--==================================================
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "WeatherHopperGui"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = CoreGui
-
---------------------------------------------------
--- MAIN FRAME
---------------------------------------------------
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 225)
-MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.Size = UDim2.new(0, 300, 0, 150)
+MainFrame.Position = UDim2.new(0.05, 0, 0.30, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = MainFrame
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = MainFrame
 
---------------------------------------------------
--- LABEL FUNKTION
---------------------------------------------------
+--==================================================
+-- TITLE
+--==================================================
 
-local function createLabel(posY, text, color)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -10, 0, 25)
+Title.Position = UDim2.new(0, 5, 0, 5)
+Title.BackgroundTransparency = 1
+Title.Text = "Greedy Growers Weather Sniffer"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
 
-    local lbl = Instance.new("TextLabel")
+--==================================================
+-- CURRENT WEATHER
+--==================================================
 
-    lbl.Size = UDim2.new(1, -24, 0, 22)
-    lbl.Position = UDim2.new(0, 12, 0, posY)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = text
-    lbl.TextColor3 = color or Color3.fromRGB(255, 255, 255)
-    lbl.TextSize = 13
-    lbl.Font = Enum.Font.GothamBold
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
+local CurrentLabel = Instance.new("TextLabel")
+CurrentLabel.Size = UDim2.new(1, -10, 0, 22)
+CurrentLabel.Position = UDim2.new(0, 5, 0, 35)
+CurrentLabel.BackgroundTransparency = 1
+CurrentLabel.Text = "Current: ..."
+CurrentLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+CurrentLabel.TextSize = 13
+CurrentLabel.Font = Enum.Font.Gotham
+CurrentLabel.TextXAlignment = Enum.TextXAlignment.Left
+CurrentLabel.Parent = MainFrame
 
-    lbl.Parent = MainFrame
+--==================================================
+-- NEXT WEATHER
+--==================================================
 
-    return lbl
-end
+local NextLabel = Instance.new("TextLabel")
+NextLabel.Size = UDim2.new(1, -10, 0, 22)
+NextLabel.Position = UDim2.new(0, 5, 0, 58)
+NextLabel.BackgroundTransparency = 1
+NextLabel.Text = "Next: ..."
+NextLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+NextLabel.TextSize = 13
+NextLabel.Font = Enum.Font.Gotham
+NextLabel.TextXAlignment = Enum.TextXAlignment.Left
+NextLabel.Parent = MainFrame
 
---------------------------------------------------
--- WEATHER LABELS
---------------------------------------------------
+--==================================================
+-- TIME
+--==================================================
 
-local CurrentLbl = createLabel(
-    12,
-    "Aktuell: Lädt...",
-    Color3.fromRGB(200, 200, 200)
-)
+local TimeLabel = Instance.new("TextLabel")
+TimeLabel.Size = UDim2.new(1, -10, 0, 22)
+TimeLabel.Position = UDim2.new(0, 5, 0, 81)
+TimeLabel.BackgroundTransparency = 1
+TimeLabel.Text = "Next Start: ..."
+TimeLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+TimeLabel.TextSize = 12
+TimeLabel.Font = Enum.Font.Gotham
+TimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TimeLabel.Parent = MainFrame
 
-local NextLbl = createLabel(
-    38,
-    "Nächstes: Lädt...",
-    Color3.fromRGB(100, 220, 255)
-)
+--==================================================
+-- STATUS
+--==================================================
 
-local TimeLbl = createLabel(
-    64,
-    "Uhrzeit: Lädt...",
-    Color3.fromRGB(255, 220, 100)
-)
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -10, 0, 22)
+StatusLabel.Position = UDim2.new(0, 5, 0, 104)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Status: Starte..."
+StatusLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.GothamBold
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Parent = MainFrame
 
-local StatusLbl = createLabel(
-    90,
-    "Status: Bereit",
-    Color3.fromRGB(150, 255, 150)
-)
-
---------------------------------------------------
+--==================================================
 -- AUTOFARM MUTATIONS HEADER
---------------------------------------------------
+--==================================================
 
-local MutationHeader = Instance.new("TextButton")
-
+local MutationHeader = Instance.new("Frame")
 MutationHeader.Name = "MutationHeader"
-MutationHeader.Size = UDim2.new(1, -24, 0, 28)
-MutationHeader.Position = UDim2.new(0, 12, 0, 116)
-
-MutationHeader.BackgroundColor3 =
-    Color3.fromRGB(40, 40, 55)
-
+MutationHeader.Size = UDim2.new(1, -10, 0, 30)
+MutationHeader.Position = UDim2.new(0, 5, 0, 126)
+MutationHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
 MutationHeader.BorderSizePixel = 0
-
-MutationHeader.Text =
-    "AutoFarm Mutations                 >"
-
-MutationHeader.TextColor3 =
-    Color3.fromRGB(255, 255, 255)
-
-MutationHeader.TextSize = 13
-MutationHeader.Font = Enum.Font.GothamBold
-MutationHeader.TextXAlignment = Enum.TextXAlignment.Left
-
 MutationHeader.Parent = MainFrame
 
-local HeaderPadding = Instance.new("UIPadding")
-HeaderPadding.PaddingLeft = UDim.new(0, 10)
-HeaderPadding.Parent = MutationHeader
-
 local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 7)
+HeaderCorner.CornerRadius = UDim.new(0, 6)
 HeaderCorner.Parent = MutationHeader
 
---------------------------------------------------
--- EVENT FRAME
---------------------------------------------------
+-- Header text
+local HeaderButton = Instance.new("TextButton")
+HeaderButton.Name = "HeaderButton"
+HeaderButton.Size = UDim2.new(1, -40, 1, 0)
+HeaderButton.Position = UDim2.new(0, 0, 0, 0)
+HeaderButton.BackgroundTransparency = 1
+HeaderButton.Text = "AutoFarm Mutations"
+HeaderButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeaderButton.TextSize = 13
+HeaderButton.Font = Enum.Font.GothamBold
+HeaderButton.TextXAlignment = Enum.TextXAlignment.Left
+HeaderButton.Parent = MutationHeader
+
+local HeaderPadding = Instance.new("UIPadding")
+HeaderPadding.PaddingLeft = UDim.new(0, 8)
+HeaderPadding.Parent = HeaderButton
+
+--==================================================
+-- ARROW BUTTON
+--==================================================
+
+local ArrowButton = Instance.new("TextButton")
+ArrowButton.Name = "ArrowButton"
+ArrowButton.Size = UDim2.new(0, 36, 1, 0)
+ArrowButton.Position = UDim2.new(1, -36, 0, 0)
+ArrowButton.BackgroundTransparency = 1
+ArrowButton.Text = ">"
+ArrowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ArrowButton.TextSize = 20
+ArrowButton.Font = Enum.Font.GothamBold
+ArrowButton.ZIndex = 10
+ArrowButton.AutoButtonColor = true
+ArrowButton.Parent = MutationHeader
+
+--==================================================
+-- EVENT LIST
+--==================================================
 
 local EventFrame = Instance.new("Frame")
-
 EventFrame.Name = "EventFrame"
-EventFrame.Size = UDim2.new(1, -24, 0, 0)
-EventFrame.Position = UDim2.new(0, 12, 0, 148)
-
-EventFrame.BackgroundTransparency = 1
+EventFrame.Size = UDim2.new(1, -10, 0, 255)
+EventFrame.Position = UDim2.new(0, 5, 0, 161)
+EventFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+EventFrame.BorderSizePixel = 0
 EventFrame.Visible = false
-
 EventFrame.Parent = MainFrame
 
+local EventCorner = Instance.new("UICorner")
+EventCorner.CornerRadius = UDim.new(0, 6)
+EventCorner.Parent = EventFrame
+
 local EventLayout = Instance.new("UIListLayout")
-
+EventLayout.Padding = UDim.new(0, 3)
 EventLayout.SortOrder = Enum.SortOrder.LayoutOrder
-EventLayout.Padding = UDim.new(0, 4)
-
 EventLayout.Parent = EventFrame
 
---------------------------------------------------
--- AUSGEWÄHLT LABEL
---------------------------------------------------
+local EventPadding = Instance.new("UIPadding")
+EventPadding.PaddingTop = UDim.new(0, 5)
+EventPadding.PaddingLeft = UDim.new(0, 5)
+EventPadding.PaddingRight = UDim.new(0, 5)
+EventPadding.PaddingBottom = UDim.new(0, 5)
+EventPadding.Parent = EventFrame
 
-local SelectedCountLbl = Instance.new("TextLabel")
-
-SelectedCountLbl.Name = "SelectedCountLbl"
-SelectedCountLbl.Size = UDim2.new(1, 0, 0, 22)
-SelectedCountLbl.BackgroundTransparency = 1
-SelectedCountLbl.Text = "Ausgewählt: 0/7"
-SelectedCountLbl.TextColor3 = Color3.fromRGB(170, 170, 190)
-SelectedCountLbl.TextSize = 11
-SelectedCountLbl.Font = Enum.Font.GothamBold
-SelectedCountLbl.TextXAlignment = Enum.TextXAlignment.Left
-SelectedCountLbl.LayoutOrder = 100
-SelectedCountLbl.Parent = EventFrame
-
---------------------------------------------------
--- CONTROL FRAME
---------------------------------------------------
+--==================================================
+-- ALL / NONE BUTTONS
+--==================================================
 
 local ControlFrame = Instance.new("Frame")
-
-ControlFrame.Name = "ControlFrame"
 ControlFrame.Size = UDim2.new(1, 0, 0, 25)
 ControlFrame.BackgroundTransparency = 1
 ControlFrame.LayoutOrder = 0
-
 ControlFrame.Parent = EventFrame
 
---------------------------------------------------
--- ALLE BUTTON
---------------------------------------------------
-
 local AllButton = Instance.new("TextButton")
-
 AllButton.Size = UDim2.new(0.48, 0, 1, 0)
 AllButton.Position = UDim2.new(0, 0, 0, 0)
-
-AllButton.BackgroundColor3 =
-    Color3.fromRGB(70, 160, 90)
-
+AllButton.BackgroundColor3 = Color3.fromRGB(55, 100, 65)
 AllButton.BorderSizePixel = 0
-
-AllButton.Text = "ALLE"
-AllButton.TextColor3 =
-    Color3.fromRGB(255, 255, 255)
-
+AllButton.Text = "ALL"
+AllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AllButton.TextSize = 12
 AllButton.Font = Enum.Font.GothamBold
-
 AllButton.Parent = ControlFrame
 
 local AllCorner = Instance.new("UICorner")
-AllCorner.CornerRadius = UDim.new(0, 6)
+AllCorner.CornerRadius = UDim.new(0, 5)
 AllCorner.Parent = AllButton
 
---------------------------------------------------
--- KEINE BUTTON
---------------------------------------------------
-
 local NoneButton = Instance.new("TextButton")
-
 NoneButton.Size = UDim2.new(0.48, 0, 1, 0)
 NoneButton.Position = UDim2.new(0.52, 0, 0, 0)
-
-NoneButton.BackgroundColor3 =
-    Color3.fromRGB(160, 70, 70)
-
+NoneButton.BackgroundColor3 = Color3.fromRGB(100, 55, 55)
 NoneButton.BorderSizePixel = 0
-
-NoneButton.Text = "KEINE"
-NoneButton.TextColor3 =
-    Color3.fromRGB(255, 255, 255)
-
+NoneButton.Text = "NONE"
+NoneButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 NoneButton.TextSize = 12
 NoneButton.Font = Enum.Font.GothamBold
-
 NoneButton.Parent = ControlFrame
 
 local NoneCorner = Instance.new("UICorner")
-NoneCorner.CornerRadius = UDim.new(0, 6)
+NoneCorner.CornerRadius = UDim.new(0, 5)
 NoneCorner.Parent = NoneButton
 
---------------------------------------------------
+--==================================================
+-- SELECTED COUNT
+--==================================================
+
+local SelectedCount = Instance.new("TextLabel")
+SelectedCount.Size = UDim2.new(1, 0, 0, 20)
+SelectedCount.BackgroundTransparency = 1
+SelectedCount.Text = "Ausgewählt: 0 / 7"
+SelectedCount.TextColor3 = Color3.fromRGB(180, 180, 180)
+SelectedCount.TextSize = 11
+SelectedCount.Font = Enum.Font.Gotham
+SelectedCount.LayoutOrder = 100
+SelectedCount.Parent = EventFrame
+
+--==================================================
 -- EVENT BUTTONS
---------------------------------------------------
+--==================================================
 
 local EventButtons = {}
 
---------------------------------------------------
--- SELECTED COUNT AKTUALISIEREN
---------------------------------------------------
-
 local function updateSelectedCount()
-
     local count = 0
 
     for _, eventName in ipairs(WeatherEvents) do
-
         if SelectedEvents[eventName] then
             count = count + 1
         end
-
     end
 
-    SelectedCountLbl.Text =
-        "Ausgewählt: " .. count .. "/" .. #WeatherEvents
-
+    SelectedCount.Text = "Ausgewählt: " .. count .. " / " .. #WeatherEvents
 end
 
---------------------------------------------------
--- EVENT BUTTON AKTUALISIEREN
---------------------------------------------------
-
 local function updateEventButton(eventName)
-
     local button = EventButtons[eventName]
 
     if not button then
@@ -305,322 +303,208 @@ local function updateEventButton(eventName)
     end
 
     if SelectedEvents[eventName] then
-
-        button.Text =
-            "✓  " .. eventName
-
-        button.BackgroundColor3 =
-            Color3.fromRGB(60, 150, 90)
-
+        button.Text = "✓  " .. eventName
+        button.BackgroundColor3 = Color3.fromRGB(55, 100, 65)
     else
-
-        button.Text =
-            "□  " .. eventName
-
-        button.BackgroundColor3 =
-            Color3.fromRGB(45, 45, 58)
-
+        button.Text = "□  " .. eventName
+        button.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
     end
-
 end
-
---------------------------------------------------
--- EVENT BUTTONS ERSTELLEN
---------------------------------------------------
 
 for index, eventName in ipairs(WeatherEvents) do
 
-    local button = Instance.new("TextButton")
+    local Button = Instance.new("TextButton")
+    Button.Name = eventName:gsub("%s+", "_")
+    Button.Size = UDim2.new(1, 0, 0, 27)
+    Button.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+    Button.BorderSizePixel = 0
+    Button.Text = "□  " .. eventName
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 12
+    Button.Font = Enum.Font.Gotham
+    Button.TextXAlignment = Enum.TextXAlignment.Left
+    Button.LayoutOrder = index
+    Button.Parent = EventFrame
 
-    button.Name =
-        eventName:gsub("%s+", "")
+    local ButtonPadding = Instance.new("UIPadding")
+    ButtonPadding.PaddingLeft = UDim.new(0, 8)
+    ButtonPadding.Parent = Button
 
-    button.Size =
-        UDim2.new(1, 0, 0, 27)
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 5)
+    ButtonCorner.Parent = Button
 
-    button.BackgroundColor3 =
-        Color3.fromRGB(45, 45, 58)
+    EventButtons[eventName] = Button
 
-    button.BorderSizePixel = 0
-
-    button.Text =
-        "□  " .. eventName
-
-    button.TextColor3 =
-        Color3.fromRGB(255, 255, 255)
-
-    button.TextSize = 12
-    button.Font = Enum.Font.GothamBold
-
-    button.TextXAlignment =
-        Enum.TextXAlignment.Left
-
-    button.LayoutOrder =
-        index
-
-    button.Parent = EventFrame
-
-    local padding = Instance.new("UIPadding")
-
-    padding.PaddingLeft =
-        UDim.new(0, 10)
-
-    padding.Parent = button
-
-    local corner = Instance.new("UICorner")
-
-    corner.CornerRadius =
-        UDim.new(0, 6)
-
-    corner.Parent = button
-
-    EventButtons[eventName] =
-        button
-
-    button.MouseButton1Click:Connect(function()
-
-        SelectedEvents[eventName] =
-            not SelectedEvents[eventName]
+    Button.MouseButton1Click:Connect(function()
+        SelectedEvents[eventName] = not SelectedEvents[eventName]
 
         updateEventButton(eventName)
         updateSelectedCount()
-
     end)
-
 end
 
---------------------------------------------------
--- ALLE AUSWÄHLEN
---------------------------------------------------
+--==================================================
+-- DROPDOWN TOGGLE
+--==================================================
+
+local function toggleDropdown()
+    DropdownOpen = not DropdownOpen
+
+    if DropdownOpen then
+        ArrowButton.Text = "v"
+        EventFrame.Visible = true
+
+        MainFrame.Size = UDim2.new(0, 300, 0, 425)
+    else
+        ArrowButton.Text = ">"
+        EventFrame.Visible = false
+
+        MainFrame.Size = UDim2.new(0, 300, 0, 156)
+    end
+end
+
+ArrowButton.MouseButton1Click:Connect(toggleDropdown)
+HeaderButton.MouseButton1Click:Connect(toggleDropdown)
+
+--==================================================
+-- ALL / NONE
+--==================================================
 
 AllButton.MouseButton1Click:Connect(function()
 
     for _, eventName in ipairs(WeatherEvents) do
-
         SelectedEvents[eventName] = true
-
         updateEventButton(eventName)
-
     end
 
     updateSelectedCount()
-
 end)
-
---------------------------------------------------
--- KEINE AUSWÄHLEN
---------------------------------------------------
 
 NoneButton.MouseButton1Click:Connect(function()
 
     for _, eventName in ipairs(WeatherEvents) do
-
         SelectedEvents[eventName] = false
-
         updateEventButton(eventName)
-
     end
 
     updateSelectedCount()
-
 end)
 
---------------------------------------------------
--- SERVER HOP BUTTON
---------------------------------------------------
+updateSelectedCount()
 
-local HopButton = Instance.new("TextButton")
+--==================================================
+-- WEATHER REMOTE
+--==================================================
 
-HopButton.Name = "HopButton"
+local function getNextWeatherRemote()
 
-HopButton.Size =
-    UDim2.new(1, -24, 0, 35)
+    local Packages = ReplicatedStorage:FindFirstChild("Packages")
 
-HopButton.Position =
-    UDim2.new(0, 12, 0, 125)
-
-HopButton.BackgroundColor3 =
-    Color3.fromRGB(255, 100, 100)
-
-HopButton.Text =
-    "SERVER HOP"
-
-HopButton.TextColor3 =
-    Color3.fromRGB(255, 255, 255)
-
-HopButton.TextSize = 14
-HopButton.Font = Enum.Font.GothamBold
-
-HopButton.Parent = MainFrame
-
-local HopCorner = Instance.new("UICorner")
-
-HopCorner.CornerRadius =
-    UDim.new(0, 8)
-
-HopCorner.Parent = HopButton
-
---------------------------------------------------
--- DROPDOWN AUF / ZU
---------------------------------------------------
-
-local function updateDropdown()
-
-    DropdownOpen = not DropdownOpen
-
-    EventFrame.Visible =
-        DropdownOpen
-
-    if DropdownOpen then
-
-        MutationHeader.Text =
-            "AutoFarm Mutations                 v"
-
-        --------------------------------------------------
-        -- EVENT LISTE ÖFFNEN
-        --------------------------------------------------
-
-        local eventHeight =
-            22 +
-            25 +
-            (#WeatherEvents * 31)
-
-        EventFrame.Size =
-            UDim2.new(
-                1,
-                -24,
-                0,
-                eventHeight
-            )
-
-        --------------------------------------------------
-        -- MAIN FRAME VERGRÖSSERN
-        --------------------------------------------------
-
-        MainFrame.Size =
-            UDim2.new(
-                0,
-                300,
-                0,
-                170 + eventHeight
-            )
-
-        --------------------------------------------------
-        -- HOP BUTTON NACH UNTEN
-        --------------------------------------------------
-
-        HopButton.Position =
-            UDim2.new(
-                0,
-                12,
-                0,
-                170 + eventHeight
-            )
-
-    else
-
-        MutationHeader.Text =
-            "AutoFarm Mutations                 >"
-
-        --------------------------------------------------
-        -- EVENT LISTE SCHLIESSEN
-        --------------------------------------------------
-
-        EventFrame.Size =
-            UDim2.new(
-                1,
-                -24,
-                0,
-                0
-            )
-
-        --------------------------------------------------
-        -- MAIN FRAME ZURÜCKSETZEN
-        --------------------------------------------------
-
-        MainFrame.Size =
-            UDim2.new(
-                0,
-                300,
-                0,
-                225
-            )
-
-        --------------------------------------------------
-        -- HOP BUTTON ZURÜCK
-        --------------------------------------------------
-
-        HopButton.Position =
-            UDim2.new(
-                0,
-                12,
-                0,
-                125
-            )
-
+    if not Packages then
+        return nil
     end
 
+    local KnitFolder = nil
+
+    for _, child in ipairs(Packages:GetChildren()) do
+        if string.sub(child.Name, 1, 13) == "sleitnick_knit" then
+            KnitFolder = child
+            break
+        end
+    end
+
+    if not KnitFolder then
+        return nil
+    end
+
+    local Knit = KnitFolder:FindFirstChild("Knit")
+
+    if not Knit then
+        return nil
+    end
+
+    local Services = Knit:FindFirstChild("Services")
+
+    if not Services then
+        return nil
+    end
+
+    local WeatherService = Services:FindFirstChild("WeatherService")
+
+    if not WeatherService then
+        return nil
+    end
+
+    local RF = WeatherService:FindFirstChild("RF")
+
+    if not RF then
+        return nil
+    end
+
+    local Remote = RF:FindFirstChild("GetNextWeather")
+
+    return Remote
 end
 
-MutationHeader.MouseButton1Click:Connect(updateDropdown)
+--==================================================
+-- NORMALIZE
+--==================================================
 
---------------------------------------------------
--- STRING NORMALISIEREN
---------------------------------------------------
+local function normalize(value)
 
-local function normalize(str)
+    if value == nil then
+        return ""
+    end
 
-    return tostring(str)
-        :lower()
-        :gsub("^%s+", "")
-        :gsub("%s+$", "")
-
+    return string.lower(string.gsub(tostring(value), "^%s*(.-)%s*$", "%1"))
 end
 
---------------------------------------------------
--- AUSGEWÄHLTES EVENT FINDEN
---------------------------------------------------
+--==================================================
+-- SELECTED WEATHER CHECK
+--==================================================
 
-local function isSelectedWeather(weatherName)
+local function getSelectedEvent(weatherName)
 
-    local normalizedWeather =
-        normalize(weatherName)
+    local normalizedWeather = normalize(weatherName)
+
+    if normalizedWeather == "" then
+        return nil
+    end
 
     for _, eventName in ipairs(WeatherEvents) do
 
         if SelectedEvents[eventName] then
 
-            local normalizedEvent =
-                normalize(eventName)
+            local normalizedEvent = normalize(eventName)
 
-            if normalizedWeather ==
-                normalizedEvent then
-
-                return true, eventName
-
+            if string.find(normalizedWeather, normalizedEvent, 1, true) then
+                return eventName
             end
-
-            if normalizedWeather:find(
-                normalizedEvent,
-                1,
-                true
-            ) then
-
-                return true, eventName
-
-            end
-
         end
-
     end
 
-    return false, nil
-
+    return nil
 end
 
---------------------------------------------------
+--==================================================
+-- CHECK IF ANY EVENT IS SELECTED
+--==================================================
+
+local function hasSelectedEvents()
+
+    for _, eventName in ipairs(WeatherEvents) do
+        if SelectedEvents[eventName] then
+            return true
+        end
+    end
+
+    return false
+end
+
+--==================================================
 -- SERVER HOP
---------------------------------------------------
+--==================================================
 
 local function serverHop()
 
@@ -630,217 +514,87 @@ local function serverHop()
 
     IsHopping = true
 
-    StatusLbl.Text =
-        "Status: Server Hop..."
+    StatusLabel.Text = "Status: Suche neuen Server..."
 
-    StatusLbl.TextColor3 =
-        Color3.fromRGB(255, 150, 80)
-
-    task.wait(0.5)
-
-    local success = pcall(function()
-
-        local servers = {}
+    local success, result = pcall(function()
 
         local url =
             "https://games.roblox.com/v1/games/"
-            .. PlaceId
+            .. tostring(PlaceId)
             .. "/servers/Public?sortOrder=Asc&limit=100"
 
-        local requestSuccess, result =
-            pcall(function()
-
-                return HttpService:JSONDecode(
-                    game:HttpGet(url)
-                )
-
-            end)
-
-        if requestSuccess
-            and result
-            and result.data then
-
-            for _, server in ipairs(result.data) do
-
-                if server.playing
-                    and server.maxPlayers
-                    and server.playing < server.maxPlayers
-                    and server.id ~= game.JobId then
-
-                    table.insert(
-                        servers,
-                        server.id
-                    )
-
-                end
-
-            end
-
-        end
-
-        if #servers > 0 then
-
-            local selectedServer =
-                servers[
-                    math.random(
-                        1,
-                        #servers
-                    )
-                ]
-
-            TeleportService:
-                TeleportToPlaceInstance(
-                    PlaceId,
-                    selectedServer,
-                    LocalPlayer
-                )
-
-        else
-
-            TeleportService:
-                Teleport(
-                    PlaceId,
-                    LocalPlayer
-                )
-
-        end
-
+        return game:HttpGet(url)
     end)
 
     if not success then
 
-        StatusLbl.Text =
-            "Status: Hop fehlgeschlagen"
+        StatusLabel.Text = "Status: Server-Liste Fehler"
+        IsHopping = false
 
-        StatusLbl.TextColor3 =
-            Color3.fromRGB(255, 80, 80)
+        task.wait(3)
+
+        return
+    end
+
+    local decodeSuccess, data = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(result)
+    end)
+
+    if not decodeSuccess or not data or not data.data then
+
+        StatusLabel.Text = "Status: Server-Daten Fehler"
+        IsHopping = false
+
+        task.wait(3)
+
+        return
+    end
+
+    local Servers = {}
+
+    for _, server in ipairs(data.data) do
+
+        if server.id
+            and server.id ~= game.JobId
+            and server.playing
+            and server.maxPlayers
+            and server.playing < server.maxPlayers then
+
+            table.insert(Servers, server.id)
+        end
+    end
+
+    if #Servers > 0 then
+
+        local RandomServer = Servers[math.random(1, #Servers)]
+
+        StatusLabel.Text = "Status: Teleportiere..."
+
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(
+                PlaceId,
+                RandomServer,
+                LocalPlayer
+            )
+        end)
+
+        task.wait(5)
 
         IsHopping = false
 
-    end
+    else
 
+        StatusLabel.Text = "Status: Kein Server gefunden"
+
+        IsHopping = false
+
+        task.wait(5)
+    end
 end
 
---------------------------------------------------
--- MANUELLER HOP
---------------------------------------------------
-
-HopButton.MouseButton1Click:Connect(function()
-
-    serverHop()
-
-end)
-
---------------------------------------------------
--- WEATHER REMOTE SUCHEN
---------------------------------------------------
-
-local function getNextWeatherRemote()
-
-    local packages =
-        ReplicatedStorage:
-        FindFirstChild("Packages")
-
-    if not packages then
-        return nil
-    end
-
-    local index =
-        packages:
-        FindFirstChild("_Index")
-
-    if not index then
-        return nil
-    end
-
-    for _, child in ipairs(index:GetChildren()) do
-
-        if child.Name:sub(1, 14) ==
-            "sleitnick_knit" then
-
-            local knit =
-                child:FindFirstChild("knit")
-
-            if knit then
-
-                local services =
-                    knit:FindFirstChild("Services")
-
-                if services then
-
-                    local weatherService =
-                        services:
-                        FindFirstChild("WeatherService")
-
-                    if weatherService then
-
-                        local rf =
-                            weatherService:
-                            FindFirstChild("RF")
-
-                        if rf then
-
-                            local remote =
-                                rf:
-                                FindFirstChild(
-                                    "GetNextWeather"
-                                )
-
-                            if remote then
-                                return remote
-                            end
-
-                        end
-
-                    end
-
-                end
-
-            end
-
-        end
-
-    end
-
-    return nil
-
-end
-
---------------------------------------------------
--- AUSGEWÄHLTE EVENTS ALS TEXT
---------------------------------------------------
-
-local function getSelectedText()
-
-    local selected = {}
-
-    for _, eventName in ipairs(WeatherEvents) do
-
-        if SelectedEvents[eventName] then
-
-            table.insert(
-                selected,
-                eventName
-            )
-
-        end
-
-    end
-
-    if #selected == 0 then
-        return "Keine"
-    end
-
-    return table.concat(
-        selected,
-        ", "
-    )
-
-end
-
---------------------------------------------------
--- WEATHER CHECK LOOP
---------------------------------------------------
+--==================================================
+-- MAIN WEATHER LOOP
+--==================================================
 
 task.spawn(function()
 
@@ -848,205 +602,109 @@ task.spawn(function()
 
     while true do
 
-        if not IsHopping then
+        -- Keine Events ausgewählt
+        if not hasSelectedEvents() then
+
+            CurrentLabel.Text = "Current: -"
+            NextLabel.Text = "Next: -"
+            TimeLabel.Text = "Next Start: -"
+            StatusLabel.Text = "Status: Keine Events ausgewählt"
+
+            task.wait(3)
+
+            continue
+        end
+
+        -- Current Weather
+        local currentWeather = "Unknown"
+
+        pcall(function()
+
+            local CurrentWeather = ReplicatedStorage:FindFirstChild("CurrentWeather")
+
+            if CurrentWeather then
+
+                if CurrentWeather:IsA("StringValue") then
+                    currentWeather = CurrentWeather.Value
+
+                elseif CurrentWeather:IsA("ObjectValue") and CurrentWeather.Value then
+                    currentWeather = CurrentWeather.Value.Name
+
+                else
+                    currentWeather = tostring(CurrentWeather.Value or CurrentWeather.Name)
+                end
+
+            end
+        end)
+
+        -- Next Weather
+        local nextWeather = "Unknown"
+        local nextStart = "Unknown"
+
+        local Remote = getNextWeatherRemote()
+
+        if Remote then
 
             pcall(function()
 
-                --------------------------------------------------
-                -- AKTUELLES WETTER
-                --------------------------------------------------
+                local result = Remote:InvokeServer()
 
-                local curr = "Normal"
+                if typeof(result) == "table" then
 
-                local currentWeather =
-                    ReplicatedStorage:
-                    FindFirstChild(
-                        "CurrentWeather"
-                    )
+                    nextWeather =
+                        result.Weather
+                        or result.weather
+                        or result.NextWeather
+                        or result.nextWeather
+                        or "Unknown"
 
-                if currentWeather then
+                    nextStart =
+                        result.StartTime
+                        or result.startTime
+                        or result.NextStart
+                        or result.nextStart
+                        or result.Time
+                        or result.time
+                        or "Unknown"
 
-                    curr =
-                        tostring(
-                            currentWeather.Value
-                        )
-
+                elseif result ~= nil then
+                    nextWeather = tostring(result)
                 end
-
-                CurrentLbl.Text =
-                    "Aktuell: " .. curr
-
-                --------------------------------------------------
-                -- NÄCHSTES WETTER
-                --------------------------------------------------
-
-                local nxt = "Keines"
-                local timeStr = "Unbekannt"
-
-                local remote =
-                    getNextWeatherRemote()
-
-                if remote then
-
-                    local success, res =
-                        pcall(function()
-
-                            return remote:
-                                InvokeServer()
-
-                        end)
-
-                    if success
-                        and type(res) == "table" then
-
-                        if res.key then
-
-                            nxt =
-                                tostring(
-                                    res.key
-                                )
-
-                        end
-
-                        if res.startTime then
-
-                            timeStr =
-                                os.date(
-                                    "%H:%M:%S",
-                                    res.startTime
-                                )
-
-                        end
-
-                    end
-
-                end
-
-                NextLbl.Text =
-                    "Nächstes: " .. nxt
-
-                TimeLbl.Text =
-                    "Uhrzeit: " .. timeStr
-
-                --------------------------------------------------
-                -- AUSGEWÄHLTE EVENTS PRÜFEN
-                --------------------------------------------------
-
-                local currentFound,
-                    currentMatch =
-                    isSelectedWeather(curr)
-
-                local nextFound,
-                    nextMatch =
-                    isSelectedWeather(nxt)
-
-                --------------------------------------------------
-                -- KEINE EVENTS AUSGEWÄHLT
-                --------------------------------------------------
-
-                if getSelectedText() == "Keine" then
-
-                    StatusLbl.Text =
-                        "Status: Keine Events ausgewählt"
-
-                    StatusLbl.TextColor3 =
-                        Color3.fromRGB(
-                            255,
-                            180,
-                            80
-                        )
-
-                    return
-
-                end
-
-                --------------------------------------------------
-                -- AKTUELLES EVENT GEFUNDEN
-                --------------------------------------------------
-
-                if currentFound then
-
-                    StatusLbl.Text =
-                        "Status: 🎯 " ..
-                        currentMatch ..
-                        " gefunden!"
-
-                    StatusLbl.TextColor3 =
-                        Color3.fromRGB(
-                            80,
-                            255,
-                            120
-                        )
-
-                    return
-
-                end
-
-                --------------------------------------------------
-                -- NÄCHSTES EVENT GEFUNDEN
-                --------------------------------------------------
-
-                if nextFound then
-
-                    StatusLbl.Text =
-                        "Status: 🎯 Nächstes: " ..
-                        nextMatch
-
-                    StatusLbl.TextColor3 =
-                        Color3.fromRGB(
-                            80,
-                            255,
-                            120
-                        )
-
-                    return
-
-                end
-
-                --------------------------------------------------
-                -- NICHTS GEFUNDEN
-                --------------------------------------------------
-
-                StatusLbl.Text =
-                    "Status: Kein Ziel-Event → Hop!"
-
-                StatusLbl.TextColor3 =
-                    Color3.fromRGB(
-                        255,
-                        120,
-                        120
-                    )
-
-                task.wait(1.5)
-
-                serverHop()
-
-                return
 
             end)
+        end
 
+        -- Update GUI
+        CurrentLabel.Text = "Current: " .. tostring(currentWeather)
+        NextLabel.Text = "Next: " .. tostring(nextWeather)
+        TimeLabel.Text = "Next Start: " .. tostring(nextStart)
+
+        -- Check Current
+        local currentMatch = getSelectedEvent(currentWeather)
+
+        -- Check Next
+        local nextMatch = getSelectedEvent(nextWeather)
+
+        if currentMatch then
+
+            StatusLabel.Text = "✓ AKTIV: " .. currentMatch
+
+        elseif nextMatch then
+
+            StatusLabel.Text = "✓ GEFUNDEN: " .. nextMatch
+
+        else
+
+            StatusLabel.Text = "✗ Nicht gefunden - Server Hop"
+
+            task.wait(1)
+
+            serverHop()
+
+            task.wait(5)
         end
 
         task.wait(3)
-
     end
-
 end)
-
---------------------------------------------------
--- INITIAL UPDATE
---------------------------------------------------
-
-updateSelectedCount()
-
-print(
-    "[Weather Hopper] Loaded!"
-)
-
-print(
-    "[Weather Hopper] Events: "
-    .. table.concat(
-        WeatherEvents,
-        ", "
-    )
-)
+```
