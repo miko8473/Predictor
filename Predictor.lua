@@ -1,4 +1,4 @@
--- Greedy Growers Weather Sniffer & Hopper (Fixed Version)
+-- Greedy Growers Weather Sniffer & Hopper (Universal Fix)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -48,10 +48,10 @@ local function createLabel(posY, text, color)
     return lbl
 end
 
-local CurrentLbl = createLabel(12, "Aktuell: Normal", Color3.fromRGB(200, 200, 200))
-local NextLbl    = createLabel(38, "Nächstes: Lädt...", Color3.fromRGB(100, 220, 255))
-local TimeLbl    = createLabel(64, "Uhrzeit: Live", Color3.fromRGB(255, 220, 100))
-local StatusLbl  = createLabel(90, "Status: Bereit", Color3.fromRGB(150, 255, 150))
+local CurrentLbl = createLabel(12, "Aktuell: Verbinde...", Color3.fromRGB(200, 200, 200))
+local NextLbl    = createLabel(38, "Nächstes: Verbinde...", Color3.fromRGB(100, 220, 255))
+local TimeLbl    = createLabel(64, "Uhrzeit: --:--", Color3.fromRGB(255, 220, 100))
+local StatusLbl  = createLabel(90, "Status: Suche Remote...", Color3.fromRGB(250, 200, 100))
 
 -- Ausklapp-Button ("Suche >")
 local SearchToggleBtn = Instance.new("TextButton")
@@ -202,20 +202,11 @@ end
 
 HopButton.MouseButton1Click:Connect(serverHop)
 
--- Knit Remote Function
+-- UNIVERSALE SUCHE (Findet den Remote-Befehl im ganzen Spiel)
 local function getNextWeatherRemote()
-    local rfPath = ReplicatedStorage:FindFirstChild("Packages")
-    if rfPath and rfPath:FindFirstChild("_Index") then
-        for _, child in ipairs(rfPath._Index:GetChildren()) do
-            if child.Name:sub(1, 14) == "sleitnick_knit" then
-                local knit = child:FindFirstChild("knit")
-                if knit and knit:FindFirstChild("Services") then
-                    local ws = knit.Services:FindFirstChild("WeatherService")
-                    if ws and ws:FindFirstChild("RF") then
-                        return ws.RF:FindFirstChild("GetNextWeather")
-                    end
-                end
-            end
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj.Name == "GetNextWeather" and obj:IsA("RemoteFunction") then
+            return obj
         end
     end
     return nil
@@ -225,40 +216,54 @@ local function normalize(str)
     return tostring(str):lower():gsub("^%s+", ""):gsub("%s+$", "")
 end
 
--- Live Überwachung
+-- Live Überwachung starten
 task.spawn(function()
     task.wait(1)
+    local remote = nil
     
+    -- Sucht so lange, bis der Remote-Befehl gefunden wurde
+    while not remote do
+        remote = getNextWeatherRemote()
+        if not remote then
+            StatusLbl.Text = "Status: Suche Remote..."
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 100)
+            task.wait(2)
+        else
+            StatusLbl.Text = "Status: Verbunden!"
+            StatusLbl.TextColor3 = Color3.fromRGB(100, 255, 150)
+        end
+    end
+
     while true do
         pcall(function()
-            -- 1. Aktuelles Wetter auslesen
+            -- 1. Aktuelles Wetter dynamisch im Spiel finden
             local curr = "Normal"
-            if ReplicatedStorage:FindFirstChild("CurrentWeather") then
-                curr = tostring(ReplicatedStorage.CurrentWeather.Value)
+            for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+                if obj.Name == "CurrentWeather" and obj:IsA("ValueBase") then
+                    curr = tostring(obj.Value)
+                    break
+                end
             end
             CurrentLbl.Text = "Aktuell: " .. curr
 
-            -- 2. Nächstes Wetter & Uhrzeit
+            -- 2. Nächstes Wetter über den gefundenen Remote-Befehl abrufen
             local nxt = "Keines"
             local timeStr = "Unbekannt"
             
-            local remote = getNextWeatherRemote()
-            if remote then
-                local success, res = pcall(function()
-                    return remote:InvokeServer()
-                end)
-                if success and type(res) == "table" then
-                    if res.key then
-                        nxt = tostring(res.key)
-                    end
-                    if res.startTime then
-                        timeStr = os.date("%H:%M:%S", res.startTime)
-                    end
+            local success, res = pcall(function()
+                return remote:InvokeServer()
+            end)
+            
+            if success and type(res) == "table" then
+                if res.key then
+                    nxt = tostring(res.key)
+                end
+                if res.startTime then
+                    timeStr = os.date("%H:%M:%S", res.startTime)
                 end
             end
             
             NextLbl.Text = "Nächstes: " .. nxt
-            TimeLbl.Text = "Uhrzeit: " + timeStr -- fixed syntax if any, using os.date properly below
             TimeLbl.Text = "Uhrzeit: " .. timeStr
 
             -- Prüfen ob eines der angekreuzten Events aktiv oder das nächste ist
