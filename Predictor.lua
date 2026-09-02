@@ -1,5 +1,5 @@
 -- ===================================================
--- SPIRIT FRUIT COMPLETE GRINDER (Mit Auto-Hop & 8/8)
+-- SPIRIT FRUIT SMART GRINDER (Mit GetNextWeather & Auto-Hop)
 -- ===================================================
 
 local Players = game:GetService("Players")
@@ -9,18 +9,16 @@ local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 
-print("[Grinder] Vollversion mit Auto-Hop gestartet. JobId:", game.JobId)
+print("[SmartGrinder] Gestartet mit Wetter-Vorschau. JobId:", game.JobId)
 
--- Die 8 Ziel-Mutationen mit zugehörigem Wetter (Shocked ausgeschlossen)
-local TARGET_MUTATIONS = {
-    {name = "Dewy",        weather = "Misty"},
-    {name = "Dusty",       weather = "Sandstorm"},
-    {name = "Frosted",     weather = "Blizzard"},
-    {name = "Radioactive", weather = "Acid-Rain"},
-    {name = "Golden",      weather = "Rainbow"},
-    {name = "Cosmic",      weather = "Meteor Shower"},
-    {name = "Infested",    weather = nil},
-    {name = "Huge",        weather = nil}
+-- Die 6 Wetter-Mutationen mit ihren Events
+local WEATHER_ORDER = {
+    {weather = "Misty",         mutation = "Dewy"},
+    {weather = "Sandstorm",     mutation = "Dusty"},
+    {weather = "Blizzard",      mutation = "Frosted"},
+    {weather = "Acid-Rain",     mutation = "Radioactive"},
+    {weather = "Rainbow",       mutation = "Golden"},
+    {weather = "Meteor Shower", mutation = "Cosmic"}
 }
 
 local autoHopEnabled = true
@@ -72,7 +70,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -16, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🌱 MUTATION GRINDER <font color='#8888aa'>(Mit Auto-Hop)</font>"
+titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(Mit Wetter-Vorschau)</font>"
 titleLabel.RichText = true
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
@@ -95,18 +93,18 @@ contentLayout.Parent = contentContainer
 local function createRow(name, sizeY, textSize)
     local lbl = Instance.new("TextLabel")
     lbl.Name = name
-    lbl.Size = UDim2.new(1, 0, 0, sizeY or 22)
+    lbl.Size = UDim2.new(1, 0, 0, sizeY or 20)
     lbl.BackgroundTransparency = 1
     lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
-    lbl.TextSize = textSize || 11
+    lbl.TextSize = textSize or 12
     lbl.Font = Enum.Font.GothamMedium
     lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.TextWrapped = true
     lbl.Parent = contentContainer
     return lbl
 end
 
 local lblWeather = createRow("LblWeather", 20, 12)
+local lblNextWeather = createRow("LblNextWeather", 20, 12)
 
 local div1 = Instance.new("Frame")
 div1.Size = UDim2.new(1, 0, 0, 1)
@@ -115,10 +113,10 @@ div1.BorderSizePixel = 0
 div1.Parent = contentContainer
 
 local fruitLabels = {
-    createRow("Fruit1", 22, 11),
-    createRow("Fruit2", 22, 11),
-    createRow("Fruit3", 22, 11),
-    createRow("Fruit4", 22, 11)
+    createRow("Fruit1", 18, 11),
+    createRow("Fruit2", 18, 11),
+    createRow("Fruit3", 18, 11),
+    createRow("Fruit4", 18, 11)
 }
 
 local div2 = Instance.new("Frame")
@@ -206,12 +204,29 @@ local function getActiveWeather()
     return "Unknown"
 end
 
+-- Smarte Funktion für die nächste Wetter-Vorschau
+local function getNextWeather()
+    for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
+        if desc.Name == "GetNextWeather" and desc:IsA("RemoteFunction") then
+            local success, res = pcall(function()
+                return desc:InvokeServer()
+            end)
+            if success and type(res) == "table" then
+                return res.key or res.Name or "Unknown"
+            elseif success and type(res) == "string" then
+                return res
+            end
+        end
+    end
+    return "Unknown"
+end
+
 local function triggerServerHop()
     if not autoHopEnabled or grindCompleted then return end
     if teleporting then return end
 
     teleporting = true
-    print("[Grinder] 🔄 Starte Serverhop! JobId:", game.JobId)
+    print("[SmartGrinder] 🔄 Starte Serverhop! JobId:", game.JobId)
     hopButton.Text = "Auto-Hop: Wechsle Server..."
 
     pcall(function()
@@ -241,18 +256,21 @@ local function getPlayerSpiritTree()
 end
 
 local cachedCurW = "Laden..."
+local cachedNextW = "Laden..."
 
 task.spawn(function()
     while screenGui.Parent do
         cachedCurW = getActiveWeather()
-        task.wait(3)
+        cachedNextW = getNextWeather()
+        task.wait(4)
     end
 end)
 
 task.spawn(function()
     while screenGui.Parent do
         local ok, err = pcall(function()
-            lblWeather.Text = "Aktuelles Wetter: " .. cachedCurW
+            lblWeather.Text = "Aktuell: " .. cachedCurW
+            lblNextWeather.Text = "Nächstes: " .. cachedNextW
 
             local spiritTree = getPlayerSpiritTree()
             if not spiritTree then
@@ -267,122 +285,118 @@ task.spawn(function()
             end
 
             local fruitMap = {}
+            local uniqueCount = 0
+
             for _, obj in ipairs(fruitSpawnsFolder:GetChildren()) do
                 local idx = obj:GetAttribute("SpawnIndex")
                 if typeof(idx) == "number" and idx >= 1 and idx <= 4 and idx % 1 == 0 then
                     fruitMap[idx] = obj
+                    uniqueCount = uniqueCount + 1
                 end
             end
 
-            local allComplete = true
+            if uniqueCount ~= 4 then
+                resetUIState("Phase: Fehler", "Ziel: Ungültige Spawns", "Warte auf Spawns 1-4...")
+                return
+            end
+
             local fruitDataList = {}
+            local allWeatherComplete = true
 
             for i = 1, 4 do
                 local spawnObj = fruitMap[i]
-                if not spawnObj then
-                    allComplete = false
-                    fruitDataList[i] = {count = 0, missingWeather = {}}
-                    fruitLabels[i].Text = string.format("Frucht %d: Nicht gefunden", i)
-                    fruitLabels[i].TextColor3 = Color3.fromRGB(120, 120, 140)
-                else
-                    local mutationsAttr = spawnObj:GetAttribute("FruitMutations") or ""
-                    local foundMap = {}
-                    for mut in mutationsAttr:gmatch("[^,%s]+") do
-                        foundMap[mut:lower()] = true
+                local mutationsAttr = spawnObj:GetAttribute("FruitMutations") or ""
+                local foundMap = {}
+                for mut in mutationsAttr:gmatch("[^,%s]+") do
+                    foundMap[mut:lower()] = true
+                end
+
+                local weatherCount = 0
+                local missingList = {}
+                for _, entry in ipairs(WEATHER_ORDER) do
+                    local mutName = entry.mutation:lower()
+                    if foundMap[mutName] then
+                        weatherCount = weatherCount + 1
+                    else
+                        table.insert(missingList, entry)
                     end
+                end
 
-                    local count = 0
-                    local missingWeatherList = {}
-                    local missingNames = {}
+                if weatherCount < #WEATHER_ORDER then
+                    allWeatherComplete = false
+                end
 
-                    for _, target in ipairs(TARGET_MUTATIONS) do
-                        if foundMap[target.name:lower()] then
-                            count = count + 1
-                        else
-                            table.insert(missingNames, target.name)
-                            if target.weather then
-                                table.insert(missingWeatherList, target)
-                            end
-                        end
-                    end
+                fruitDataList[i] = {
+                    count = weatherCount,
+                    missing = missingList
+                }
+            end
 
-                    if count < #TARGET_MUTATIONS then
-                        allComplete = false
-                    end
+            -- WETTER-SAMMEL-PHASE MIT VORSCHAU-LOGIK
+            if not allWeatherComplete then
+                lblPhase.Text = "Status: Sammle 6 Wetter-Mutationen"
 
-                    fruitDataList[i] = {
-                        count = count,
-                        missingWeather = missingWeatherList,
-                        missingNames = missingNames
-                    }
-
-                    if count >= #TARGET_MUTATIONS then
-                        fruitLabels[i].Text = string.format("Frucht %d: 8/8 Komplett ✅", i)
+                for i = 1, 4 do
+                    local dat = fruitDataList[i]
+                    if dat.count >= #WEATHER_ORDER then
+                        fruitLabels[i].Text = string.format("Frucht %d: 6/6 Komplett ✅", i)
                         fruitLabels[i].TextColor3 = Color3.fromRGB(100, 255, 100)
                     else
-                        local missingStr = table.concat(missingNames, ", ")
-                        fruitLabels[i].Text = string.format("Frucht %d: %d/8 | Fehlt: %s", i, count, missingStr)
+                        fruitLabels[i].Text = string.format("Frucht %d: %d/6 Mutationen", i, dat.count)
                         fruitLabels[i].TextColor3 = Color3.fromRGB(255, 170, 80)
                     end
                 end
-            end
-
-            -- ARBEITS- / HOP-PHASE
-            if not allComplete then
-                lblPhase.Text = "Status: Sammle alle Mutationen (8/8)"
-
+                
                 local activeFruitIdx = 1
                 for i = 1, 4 do
-                    if fruitDataList[i] and fruitDataList[i].count < #TARGET_MUTATIONS then
+                    if fruitDataList[i].count < #WEATHER_ORDER then
                         activeFruitIdx = i
                         break
                     end
                 end
 
-                local neededWeathers = fruitDataList[activeFruitIdx] and fruitDataList[activeFruitIdx].missingWeather or {}
-                local nextWeatherEntry = neededWeathers[1]
+                local neededWeathers = fruitDataList[activeFruitIdx].missing
+                local nextNeededEntry = neededWeathers[1]
 
-                if nextWeatherEntry then
-                    lblTarget.Text = string.format("Ziel: F%d braucht Wetter '%s' (%s)", activeFruitIdx, nextWeatherEntry.weather, nextWeatherEntry.name)
+                if nextNeededEntry then
+                    lblTarget.Text = string.format("Ziel: F%d braucht '%s' (%s)", activeFruitIdx, nextNeededEntry.weather, nextNeededEntry.mutation)
 
                     local curClean = cleanString(cachedCurW)
-                    local reqClean = cleanString(nextWeatherEntry.weather)
+                    local nextClean = cleanString(cachedNextW)
+                    local reqClean = cleanString(nextNeededEntry.weather)
 
+                    -- INTELLIGENTE ENTSCHEIDUNG: Bleiben wenn aktuell ODER nächste passt!
                     if curClean == reqClean then
-                        lblNeeded.Text = "Status: Wetter passt! Warten auf Mutation..."
+                        lblNeeded.Text = "Wetter aktiv! Bleibe auf Server..."
                         lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
+                    elseif nextClean == reqClean then
+                        lblNeeded.Text = "Nächstes Wetter passt! Warte..."
+                        lblNeeded.TextColor3 = Color3.fromRGB(255, 220, 80)
                     else
-                        lblNeeded.Text = "Status: Wetter unpassend -> Serverhop"
+                        lblNeeded.Text = "Wetter passt nicht -> Hoppe"
                         lblNeeded.TextColor3 = Color3.fromRGB(220, 100, 100)
 
                         if autoHopEnabled then
                             triggerServerHop()
                         end
                     end
-                else
-                    lblTarget.Text = string.format("Ziel: F%d braucht zufällige Mutationen (Infested/Huge)", activeFruitIdx)
-                    lblNeeded.Text = "Status: Serverhop aktiv..."
-                    lblNeeded.TextColor3 = Color3.fromRGB(255, 220, 80)
-                    if autoHopEnabled then
-                        triggerServerHop()
-                    end
                 end
 
-            -- FERTIG-PHASE (Alle 4 Früchte haben 8/8)
+            -- FERTIG-PHASE (Kein Auto-Collect!)
             else
                 grindCompleted = true
                 autoHopEnabled = false
                 hopButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-                hopButton.Text = "Auto-Hop: FERTIG (8/8)"
+                hopButton.Text = "Auto-Hop: FERTIG (6/6)"
 
-                lblPhase.Text = "🎉 ALLE 4 FRÜCHTE HABEN 8/8 MUTATIONEN!"
+                lblPhase.Text = "🎉 ALLE 4 FRÜCHTE HABEN 6/6 WETTER!"
                 lblTarget.Text = "Ziel: Bereit zum manuellen Ernten"
-                lblNeeded.Text = "Status: Auto-Hop gestoppt."
+                lblNeeded.Text = "Status: Server-Hop gestoppt."
                 lblTarget.TextColor3 = Color3.fromRGB(100, 255, 100)
                 lblNeeded.TextColor3 = Color3.fromRGB(100, 255, 100)
 
                 for i = 1, 4 do
-                    fruitLabels[i].Text = string.format("Frucht %d: 8/8 Mutationen aktiv ✅", i)
+                    fruitLabels[i].Text = string.format("Frucht %d: 6/6 Wetter aktiv ✅", i)
                     fruitLabels[i].TextColor3 = Color3.fromRGB(100, 255, 100)
                 end
             end
@@ -390,11 +404,11 @@ task.spawn(function()
         end)
 
         if not ok then
-            warn("[Grinder] Fehler:", err)
+            warn("[SmartGrinder] Fehler:", err)
         end
         
-        task.wait(2)
+        task.wait(1.5)
     end
 end)
 
-print("[Grinder] Vollständiges Skript mit Auto-Hop erfolgreich geladen!")
+print("[SmartGrinder] Erfolgreich geladen!")
