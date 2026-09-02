@@ -1,5 +1,5 @@
 -- ============================================================
--- SPIRIT FRUIT SMART GRINDER & AUTO-COLLECT (24/7 SECURE & CLEAN)
+-- SPIRIT FRUIT SMART GRINDER & AUTO-COLLECT (STABLE MAPPING)
 -- REAL-TIME / MULTI-FRUIT / SAFE WEATHER MATCHING
 -- ============================================================
 local Players = game:GetService("Players")
@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 print("============================================================")
-print("[SmartGrinder] Gestartet im 24/7 Endlos-Modus (Auto-Cleanup & Safe Retry)")
+print("[SmartGrinder] Gestartet mit stabilem Fruit-Mapping")
 print("[SmartGrinder] JobId:", game.JobId)
 print("============================================================")
 
@@ -114,7 +114,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -20, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(24/7 Secure)</font>"
+titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(Stable Map)</font>"
 titleLabel.RichText = true
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
@@ -282,23 +282,84 @@ local function getPlayerSpiritTree()
     if not myPlot then return nil end
 
     for _, child in ipairs(myPlot:GetChildren()) do
-        if child:GetAttribute("SeedType") == "Spirit" then return child end
+        local seedType = child:GetAttribute("SeedType") or child:GetAttribute("Type") or child:GetAttribute("PlantType")
+        if seedType and tostring(seedType):lower() == "spirit" then return child end
     end
     for _, child in ipairs(myPlot:GetDescendants()) do
-        if child:GetAttribute("SeedType") == "Spirit" then return child end
+        local seedType = child:GetAttribute("SeedType") or child:GetAttribute("Type") or child:GetAttribute("PlantType")
+        if seedType and tostring(seedType):lower() == "spirit" then return child end
     end
     return nil
 end
 
 local function getFruitMap(fruitSpawnsFolder)
     local fruitMap = {}
-    for _, obj in ipairs(fruitSpawnsFolder:GetChildren()) do
-        local rawIndex = obj:GetAttribute("SpawnIndex")
+    local children = fruitSpawnsFolder:GetChildren()
+
+    -- 1. Versuch: Über Attribute (SpawnIndex / Index / ID)
+    for _, obj in ipairs(children) do
+        local rawIndex = obj:GetAttribute("SpawnIndex") or obj:GetAttribute("Index") or obj:GetAttribute("ID")
         local idx = tonumber(rawIndex)
         if idx and idx >= 1 and idx <= FRUIT_COUNT and idx % 1 == 0 and fruitMap[idx] == nil then
             fruitMap[idx] = obj
         end
     end
+
+    -- 2. Versuch: Über im Namen enthaltene Nummern (z. B. "Fruit1", "2")
+    local missingAny = false
+    for i = 1, FRUIT_COUNT do
+        if fruitMap[i] == nil then missingAny = true break end
+    end
+
+    if missingAny then
+        for _, obj in ipairs(children) do
+            local numStr = obj.Name:match("(%d+)")
+            if numStr then
+                local idx = tonumber(numStr)
+                if idx and idx >= 1 and idx <= FRUIT_COUNT and fruitMap[idx] == nil then
+                    fruitMap[idx] = obj
+                end
+            end
+        end
+    end
+
+    -- 3. Fallback mit stabiler alphabetischer Sortierung (verhindert Chaos durch rohes GetChildren)
+    missingAny = false
+    for i = 1, FRUIT_COUNT do
+        if fruitMap[i] == nil then missingAny = true break end
+    end
+
+    if missingAny and #children >= FRUIT_COUNT then
+        local sortedChildren = {}
+        for _, child in ipairs(children) do
+            table.insert(sortedChildren, child)
+        end
+        table.sort(sortedChildren, function(a, b)
+            return a.Name < b.Name
+        end)
+
+        local childIdx = 1
+        for i = 1, FRUIT_COUNT do
+            if fruitMap[i] == nil then
+                while sortedChildren[childIdx] do
+                    local alreadyAssigned = false
+                    for _, assignedObj in pairs(fruitMap) do
+                        if assignedObj == sortedChildren[childIdx] then
+                            alreadyAssigned = true
+                            break
+                        end
+                    end
+                    if not alreadyAssigned then
+                        fruitMap[i] = sortedChildren[childIdx]
+                        childIdx += 1
+                        break
+                    end
+                    childIdx += 1
+                end
+            end
+        end
+    end
+
     for i = 1, FRUIT_COUNT do
         if fruitMap[i] == nil then return nil end
     end
@@ -307,7 +368,7 @@ end
 
 local function getMutationData(spawnObj)
     if not spawnObj then return {count = 0, found = {}, missing = WEATHER_ORDER, raw = nil} end
-    local raw = spawnObj:GetAttribute("FruitMutations")
+    local raw = spawnObj:GetAttribute("FruitMutations") or spawnObj:GetAttribute("Mutations") or spawnObj:GetAttribute("MutationList")
     local foundMap = {}
     if typeof(raw) == "string" then
         for part in string.gmatch(raw, "[^,]+") do
@@ -449,14 +510,13 @@ local function triggerServerHop()
         end
 
         if not selectedServer then
-            print("[SmartGrinder] ⚠️ Kein neuer, freier Server gefunden. Warte auf nächste API-Abfrage.")
+            print("[SmartGrinder] ⚠️ Kein neuer, freier Server gefunden.")
             teleporting = false
             if autoHopEnabled then hopButton.Text = "Auto-Hop: AN" end
             return
         end
 
         print("[SmartGrinder] ✅ Server gewählt:", selectedServer.id)
-        
         hopButton.Text = "Auto-Hop: Teleportiere..."
         
         visitedServers[selectedServer.id] = os.time()
@@ -531,23 +591,20 @@ task.spawn(function()
                 return
             end
 
-            local fruitSpawnsFolder = spiritTree:FindFirstChild("FruitSpawns")
+            local fruitSpawnsFolder = spiritTree:FindFirstChild("FruitSpawns") or spiritTree:FindFirstChild("Fruits") or spiritTree:FindFirstChild("Spawns")
             if not fruitSpawnsFolder then
                 hopPending = false
-                resetUIState("Phase: FruitSpawns fehlen", "Ziel: Warte auf Spawns", "Hop pausiert...")
+                resetUIState("Phase: FruitSpawns Ordner fehlt", "Ziel: Warte auf Spawns-Ordner", "Hop pausiert...")
                 return
             end
 
             local fruitMap = getFruitMap(fruitSpawnsFolder)
             if not fruitMap then
                 hopPending = false
-                resetUIState("Phase: Spawns werden geladen", "Ziel: Warte auf Frucht 1-4", "Hop pausiert...")
+                resetUIState("Phase: Früchte werden geladen", "Ziel: Warte auf Früchte 1-4", "Hop pausiert...")
                 return
             end
 
-            -- ====================================================
-            -- CLEANUP: Entferne zerstörte/alte Instanzen aus Tabelle
-            -- ====================================================
             for spawnObj, _ in pairs(collectedInstances) do
                 if not spawnObj or not spawnObj.Parent then
                     collectedInstances[spawnObj] = nil
@@ -568,11 +625,9 @@ task.spawn(function()
                         local triggerTime = collectedInstances[spawnObj]
                         if not triggerTime then
                             if collectFruit(spawnObj) then
-                                collectedInstances[spawnObj] = os.clock() -- Timestamp speichern
+                                collectedInstances[spawnObj] = os.clock()
                             end
                         else
-                            -- Wenn das Ding nach 4 Sekunden immer noch da ist und immer noch 6/6,
-                            -- hat das Spiel es nicht akzeptiert -> Retry erlauben!
                             if (os.clock() - triggerTime > 4.0) and spawnObj.Parent then
                                 collectedInstances[spawnObj] = nil
                             end
@@ -641,7 +696,7 @@ task.spawn(function()
                         if elapsed >= HOP_CONFIRM_DELAY then
                             
                             local verifyTree = getPlayerSpiritTree()
-                            local verifyFolder = verifyTree and verifyTree:FindFirstChild("FruitSpawns")
+                            local verifyFolder = verifyTree and (verifyTree:FindFirstChild("FruitSpawns") or verifyTree:FindFirstChild("Fruits") or verifyTree:FindFirstChild("Spawns"))
                             local verifyMap = verifyFolder and getFruitMap(verifyFolder)
                             
                             local verifyMissingWeathers = {}
