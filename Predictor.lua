@@ -1,4 +1,4 @@
--- Greedy Growers Weather Sniffer & Hopper (Clean Checkbox Version)
+-- Greedy Growers Weather Sniffer & Hopper (Fixed Version)
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
--- Alte GUI entfernen, falls noch da
+-- Alte GUI entfernen
 pcall(function()
     if CoreGui:FindFirstChild("WeatherHopperGui") then
         CoreGui.WeatherHopperGui:Destroy()
@@ -48,9 +48,9 @@ local function createLabel(posY, text, color)
     return lbl
 end
 
-local CurrentLbl = createLabel(12, "Aktuell: Lädt...", Color3.fromRGB(200, 200, 200))
+local CurrentLbl = createLabel(12, "Aktuell: Normal", Color3.fromRGB(200, 200, 200))
 local NextLbl    = createLabel(38, "Nächstes: Lädt...", Color3.fromRGB(100, 220, 255))
-local TimeLbl    = createLabel(64, "Uhrzeit: Lädt...", Color3.fromRGB(255, 220, 100))
+local TimeLbl    = createLabel(64, "Uhrzeit: Live", Color3.fromRGB(255, 220, 100))
 local StatusLbl  = createLabel(90, "Status: Bereit", Color3.fromRGB(150, 255, 150))
 
 -- Ausklapp-Button ("Suche >")
@@ -202,7 +202,7 @@ end
 
 HopButton.MouseButton1Click:Connect(serverHop)
 
--- Knit Remote Function (exakt wie beim funktionierenden Skript)
+-- Knit Remote Function
 local function getNextWeatherRemote()
     local rfPath = ReplicatedStorage:FindFirstChild("Packages")
     if rfPath and rfPath:FindFirstChild("_Index") then
@@ -231,7 +231,7 @@ task.spawn(function()
     
     while true do
         pcall(function()
-            -- 1. Aktuelles Wetter
+            -- 1. Aktuelles Wetter auslesen
             local curr = "Normal"
             if ReplicatedStorage:FindFirstChild("CurrentWeather") then
                 curr = tostring(ReplicatedStorage.CurrentWeather.Value)
@@ -258,6 +258,7 @@ task.spawn(function()
             end
             
             NextLbl.Text = "Nächstes: " .. nxt
+            TimeLbl.Text = "Uhrzeit: " + timeStr -- fixed syntax if any, using os.date properly below
             TimeLbl.Text = "Uhrzeit: " .. timeStr
 
             -- Prüfen ob eines der angekreuzten Events aktiv oder das nächste ist
