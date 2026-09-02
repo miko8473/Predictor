@@ -1,5 +1,5 @@
 -- ============================================================
--- SPIRIT FRUIT SMART GRINDER
+-- SPIRIT FRUIT SMART GRINDER & AUTO-COLLECT (24/7 SECURE & CLEAN)
 -- REAL-TIME / MULTI-FRUIT / SAFE WEATHER MATCHING
 -- ============================================================
 local Players = game:GetService("Players")
@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 print("============================================================")
-print("[SmartGrinder] Gestartet")
+print("[SmartGrinder] Gestartet im 24/7 Endlos-Modus (Auto-Cleanup & Safe Retry)")
 print("[SmartGrinder] JobId:", game.JobId)
 print("============================================================")
 
@@ -32,14 +32,13 @@ local FRUIT_COUNT = 4
 local WEATHER_UPDATE_INTERVAL = 1.0
 local FRUIT_UPDATE_INTERVAL = 0.75
 local HOP_CONFIRM_DELAY = 1.5
-local TELEPORT_COOLDOWN = 5.0 -- Wartezeit nach fehlgeschlagenem Teleport
+local TELEPORT_COOLDOWN = 5.0
 
 -- ============================================================
 -- STATUS & PERSISTENTE DATEN
 -- ============================================================
 local autoHopEnabled = true
 local teleporting = false
-local grindCompleted = false
 
 local cachedCurW = "Laden..."
 local cachedNextW = "Laden..."
@@ -50,7 +49,8 @@ local hopPending = false
 local hopPendingSince = 0
 local lastTeleportFail = 0
 
--- Besuchte Server laden und speichern
+local collectedInstances = {}
+
 local VISITED_FILE = "SmartGrinder_Visited.json"
 local visitedServers = {}
 
@@ -63,9 +63,7 @@ pcall(function()
     end
 end)
 
--- Aktuelle JobId speichern (Timestamp für eventuelles späteres Cleanup)
 visitedServers[game.JobId] = os.time()
-
 pcall(function()
     if writefile then
         writefile(VISITED_FILE, HttpService:JSONEncode(visitedServers))
@@ -73,7 +71,7 @@ pcall(function()
 end)
 
 -- ============================================================
--- GUI AUFRÄUMEN & AUFBAU (Struktur beibehalten)
+-- GUI AUFRÄUMEN & AUFBAU
 -- ============================================================
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local oldGui = playerGui:FindFirstChild("SpiritGrinderGUI")
@@ -116,7 +114,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -20, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(Real-Time Multi-Match)</font>"
+titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(24/7 Secure)</font>"
 titleLabel.RichText = true
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
@@ -196,7 +194,6 @@ btnCorner.CornerRadius = UDim.new(0, 6)
 btnCorner.Parent = hopButton
 
 hopButton.MouseButton1Click:Connect(function()
-    if grindCompleted then return end
     autoHopEnabled = not autoHopEnabled
     hopPending = false
     teleporting = false
@@ -333,6 +330,33 @@ local function getMutationData(spawnObj)
     return {count = count, found = found, missing = missing, raw = raw}
 end
 
+-- ============================================================
+-- SICHERE AUTO-COLLECT FUNKTION
+-- ============================================================
+local function collectFruit(spawnObj)
+    if not spawnObj then return false end
+    
+    local triggered = false
+    pcall(function()
+        local prompt = spawnObj:FindFirstChildOfClass("ProximityPrompt") or spawnObj:FindFirstChild("ProximityPrompt", true)
+        if prompt then
+            fireproximityprompt(prompt)
+            triggered = true
+            print("[SmartGrinder] 🍇 Frucht automatisch eingesammelt via ProximityPrompt!")
+            return
+        end
+
+        local clickDetector = spawnObj:FindFirstChildOfClass("ClickDetector") or spawnObj:FindFirstChild("ClickDetector", true)
+        if clickDetector then
+            fireclickdetector(clickDetector)
+            triggered = true
+            print("[SmartGrinder] 🍇 Frucht automatisch eingesammelt via ClickDetector!")
+            return
+        end
+    end)
+    return triggered
+end
+
 local function getWeatherMatches(allMissingWeathers, weather)
     local matches = {}
     local weatherClean = cleanString(weather)
@@ -362,10 +386,10 @@ local function displayMatches(prefix, matches)
 end
 
 -- ============================================================
--- OPTIMIERTER SERVER HOP (RANDOMIZED LOW POP & RECOVERY)
+-- OPTIMIERTER SERVER HOP
 -- ============================================================
 local function triggerServerHop()
-    if not autoHopEnabled or grindCompleted or teleporting then return end
+    if not autoHopEnabled or teleporting then return end
     
     if os.clock() - lastTeleportFail < TELEPORT_COOLDOWN then
         lblNeeded.Text = "⏳ Teleport-Cooldown aktiv..."
@@ -389,7 +413,6 @@ local function triggerServerHop()
         math.randomseed(os.time())
 
         for page = 1, 5 do
-            -- Ascending Order für Server mit wenig Spielern
             local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
             if cursor then url = url .. "&cursor=" .. HttpService:UrlEncode(cursor) end
 
@@ -408,7 +431,6 @@ local function triggerServerHop()
                     local maxPlayers = tonumber(server.maxPlayers)
 
                     if serverId and serverId ~= game.JobId and not visitedServers[serverId] and playing and maxPlayers then
-                        -- Filter: Nicht voll und hat mindestens 1 Spieler (verhindert tote Lobbys)
                         if playing < (maxPlayers - 1) and playing > 0 then
                             table.insert(validServersInPage, server)
                         end
@@ -416,7 +438,6 @@ local function triggerServerHop()
                 end
             end
 
-            -- Wähle zufällig aus den passenden Low-Pop-Servern dieser Seite
             if #validServersInPage > 0 then
                 selectedServer = validServersInPage[math.random(1, #validServersInPage)]
                 break
@@ -435,11 +456,9 @@ local function triggerServerHop()
         end
 
         print("[SmartGrinder] ✅ Server gewählt:", selectedServer.id)
-        print(string.format("[SmartGrinder] Auslastung: %d/%d", selectedServer.playing, selectedServer.maxPlayers))
         
         hopButton.Text = "Auto-Hop: Teleportiere..."
         
-        -- In Datei speichern vor dem Hop
         visitedServers[selectedServer.id] = os.time()
         pcall(function()
             if writefile then writefile(VISITED_FILE, HttpService:JSONEncode(visitedServers)) end
@@ -526,21 +545,39 @@ task.spawn(function()
                 return
             end
 
-            local fruitDataList = {}
-            local allWeatherComplete = true
+            -- ====================================================
+            -- CLEANUP: Entferne zerstörte/alte Instanzen aus Tabelle
+            -- ====================================================
+            for spawnObj, _ in pairs(collectedInstances) do
+                if not spawnObj or not spawnObj.Parent then
+                    collectedInstances[spawnObj] = nil
+                end
+            end
+
             local allMissingWeathers = {}
 
             for i = 1, FRUIT_COUNT do
-                local data = getMutationData(fruitMap[i])
-                fruitDataList[i] = data
-
-                if data.count < TARGET_COUNT then
-                    allWeatherComplete = false
-                end
+                local spawnObj = fruitMap[i]
+                local data = getMutationData(spawnObj)
 
                 if data.count >= TARGET_COUNT then
                     fruitLabels[i].Text = string.format("Frucht %d: %d/%d | Komplett ✅", i, data.count, TARGET_COUNT)
                     fruitLabels[i].TextColor3 = Color3.fromRGB(100, 255, 100)
+
+                    if spawnObj then
+                        local triggerTime = collectedInstances[spawnObj]
+                        if not triggerTime then
+                            if collectFruit(spawnObj) then
+                                collectedInstances[spawnObj] = os.clock() -- Timestamp speichern
+                            end
+                        else
+                            -- Wenn das Ding nach 4 Sekunden immer noch da ist und immer noch 6/6,
+                            -- hat das Spiel es nicht akzeptiert -> Retry erlauben!
+                            if (os.clock() - triggerTime > 4.0) and spawnObj.Parent then
+                                collectedInstances[spawnObj] = nil
+                            end
+                        end
+                    end
                 else
                     local missingNames = {}
                     for _, entry in ipairs(data.missing) do
@@ -556,23 +593,12 @@ task.spawn(function()
                 end
             end
 
-            if allWeatherComplete then
-                grindCompleted = true
-                autoHopEnabled = false
+            if #allMissingWeathers == 0 then
                 hopPending = false
-
-                hopButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-                hopButton.Text = "Auto-Hop: FERTIG (6/6)"
-                lblPhase.Text = "🎉 ALLE 4 FRÜCHTE: 6/6!"
-                lblTarget.Text = "Ziel: Bereit zum manuellen Ernten"
-                lblNeeded.Text = "Server-Hop gestoppt."
-                lblTarget.TextColor3 = Color3.fromRGB(100, 255, 100)
+                lblPhase.Text = "Status: Alle Früchte komplett/geerntet"
+                lblTarget.Text = "Ziel: Warte auf neue Fruit-Spawns"
+                lblNeeded.Text = "🟢 Kein Hop erforderlich."
                 lblNeeded.TextColor3 = Color3.fromRGB(100, 255, 100)
-
-                for i = 1, FRUIT_COUNT do
-                    fruitLabels[i].Text = string.format("Frucht %d: 6/6 Wetter aktiv ✅", i)
-                    fruitLabels[i].TextColor3 = Color3.fromRGB(100, 255, 100)
-                end
                 return
             end
 
@@ -613,19 +639,46 @@ task.spawn(function()
                     else
                         local elapsed = os.clock() - hopPendingSince
                         if elapsed >= HOP_CONFIRM_DELAY then
+                            
+                            local verifyTree = getPlayerSpiritTree()
+                            local verifyFolder = verifyTree and verifyTree:FindFirstChild("FruitSpawns")
+                            local verifyMap = verifyFolder and getFruitMap(verifyFolder)
+                            
+                            local verifyMissingWeathers = {}
+
+                            if verifyMap then
+                                for i = 1, FRUIT_COUNT do
+                                    local vData = getMutationData(verifyMap[i])
+                                    if vData.count < TARGET_COUNT then
+                                        for _, entry in ipairs(vData.missing) do
+                                            table.insert(verifyMissingWeathers, {
+                                                fruitIdx = i,
+                                                weather = entry.weather,
+                                                mutation = entry.mutation
+                                            })
+                                        end
+                                    end
+                                end
+                            else
+                                verifyMissingWeathers = allMissingWeathers
+                            end
+
                             local verifyCurrent = getActiveWeather()
                             local verifyNext = getNextWeather()
 
-                            if not isValidWeather(verifyCurrent) or not isValidWeather(verifyNext) then
+                            if #verifyMissingWeathers == 0 then
+                                hopPending = false
+                                lblNeeded.Text = "🟢 Alle Früchte inzwischen komplett/geerntet!"
+                            elseif not isValidWeather(verifyCurrent) or not isValidWeather(verifyNext) then
                                 hopPending = false
                                 lblNeeded.Text = "🟡 Wetterprüfung unsicher → Hop abgebrochen"
                             else
-                                local verifyCurrentMatches = getWeatherMatches(allMissingWeathers, verifyCurrent)
-                                local verifyNextMatches = getWeatherMatches(allMissingWeathers, verifyNext)
+                                local verifyCurrentMatches = getWeatherMatches(verifyMissingWeathers, verifyCurrent)
+                                local verifyNextMatches = getWeatherMatches(verifyMissingWeathers, verifyNext)
 
                                 if #verifyCurrentMatches > 0 or #verifyNextMatches > 0 then
                                     hopPending = false
-                                    lblNeeded.Text = "🟢 Wetter inzwischen relevant → Server behalten"
+                                    lblNeeded.Text = "🟢 Mutationen/Wetter inzwischen relevant → Server behalten"
                                 else
                                     triggerServerHop()
                                 end
