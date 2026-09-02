@@ -1,5 +1,5 @@
 -- ===================================================
--- V28: SPIRIT FRUIT MASTER - SEQUENTIAL WEATHER & PHASE 2 WAIT
+-- V29: SPIRIT FRUIT MASTER - FLEXIBLE WEATHER MATCHING & AUTO-COLLECT
 -- ===================================================
 
 local Players = game:GetService("Players")
@@ -10,9 +10,9 @@ local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 
-print("[V28] Gestartet. Initiale JobId:", game.JobId)
+print("[V29] Gestartet. Initiale JobId:", game.JobId)
 
--- Die 6 echten Wetter-Mutationen (Streng für Phase 1)
+-- Die 6 echten Wetter-Mutationen
 local WEATHER_ORDER = {
     {weather = "Misty",         mutation = "Dewy"},
     {weather = "Sandstorm",     mutation = "Dusty"},
@@ -82,7 +82,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -16, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "⚡ SPIRIT FRUIT MASTER <font color='#8888aa'>V28 (Sequential)</font>"
+titleLabel.Text = "⚡ SPIRIT FRUIT MASTER <font color='#8888aa'>V29 (Fix Match)</font>"
 titleLabel.RichText = true
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
@@ -163,7 +163,7 @@ hopButton.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
 hopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 hopButton.TextSize = 12
 hopButton.Font = Enum.Font.GothamBold
-hopButton.Text = "Auto-Hop: AN (Sequential Mode)"
+hopButton.Text = "Auto-Hop: AN (Flexible Match)"
 hopButton.Parent = contentContainer
 
 local btnCorner = Instance.new("UICorner")
@@ -177,7 +177,7 @@ hopButton.MouseButton1Click:Connect(function()
     if autoHopEnabled then
         teleporting = false
         hopButton.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-        hopButton.Text = "Auto-Hop: AN (Sequential Mode)"
+        hopButton.Text = "Auto-Hop: AN (Flexible Match)"
     else
         teleporting = false
         hopButton.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
@@ -194,6 +194,12 @@ local function resetUIState(phaseText, targetText, neededText, actionText)
         fruitLabels[i].Text = string.format("Frucht %d: Warten...", i)
         fruitLabels[i].TextColor3 = Color3.fromRGB(120, 120, 140)
     end
+end
+
+-- Hilfsfunktion: Bereinigt Text für perfekten Vergleich (entfernt Leerzeichen & Großschreibung)
+local function cleanString(str)
+    if not str then return "" end
+    return tostring(str):gsub("%s+", ""):lower()
 end
 
 -- Wetter-Erkennung (Aktuell)
@@ -229,7 +235,9 @@ local function getNextWeather()
                 return desc:InvokeServer()
             end)
             if success and type(res) == "table" then
-                return res.key or "Unknown"
+                return res.key or res.Name or "Unknown"
+            elseif success and type(res) == "string" then
+                return res
             end
         end
     end
@@ -242,7 +250,7 @@ local function triggerServerHop()
     if teleporting then return end
 
     teleporting = true
-    print("[V28] 🔄 Starte Serverhop! Vorherige JobId:", game.JobId)
+    print("[V29] 🔄 Starte Serverhop! Vorherige JobId:", game.JobId)
     hopButton.Text = "Auto-Hop: Wechsle Server..."
 
     local success, err = pcall(function()
@@ -250,7 +258,7 @@ local function triggerServerHop()
     end)
 
     if not success then
-        warn("[V28] Teleport-Fehler:", err)
+        warn("[V29] Teleport-Fehler:", err)
         teleporting = false
         hopButton.Text = "Auto-Hop: AN (Retry...)"
     end
@@ -284,12 +292,12 @@ local function triggerCollection(spawnObj)
         if desc:IsA("ClickDetector") then
             pcall(function()
                 fireclickdetector(desc)
-                print("[V28] 🖱️ ClickDetector ausgelöst für:", spawnObj.Name)
+                print("[V29] 🖱️ ClickDetector ausgelöst für:", spawnObj.Name)
             end)
         elseif desc:IsA("ProximityPrompt") then
             pcall(function()
                 fireproximityprompt(desc)
-                print("[V28] 🧺 ProximityPrompt ausgelöst für:", spawnObj.Name)
+                print("[V29] 🧺 ProximityPrompt ausgelöst für:", spawnObj.Name)
             end)
         end
     end
@@ -307,7 +315,7 @@ task.spawn(function()
     end
 end)
 
--- 2. Haupt-Loop mit Sequenzieller Logik & Phase 2
+-- 2. Haupt-Loop mit robuster Match-Logik & Phase 2
 task.spawn(function()
     while screenGui.Parent do
         local ok, err = pcall(function()
@@ -400,7 +408,6 @@ task.spawn(function()
             if not allWeatherComplete then
                 lblPhase.Text = "Phase 1: Wetter-Sammlung (Frucht-by-Frucht)"
                 
-                -- Finde die erste Frucht, die noch nicht 6/6 Wetter hat
                 local activeFruitIdx = 1
                 for i = 1, 4 do
                     if fruitWeatherCounts[i] < REQUIRED_WEATHER_COUNT then
@@ -410,15 +417,19 @@ task.spawn(function()
                 end
 
                 local neededWeathers = fruitMissingWeathers[activeFruitIdx]
-                local nextNeededEntry = neededWeathers[1] -- Das nächste genaue Wetter das diese Frucht braucht
+                local nextNeededEntry = neededWeathers[1]
 
                 lblTarget.Text = string.format("Ziel: Frucht %d braucht '%s' (%s)", activeFruitIdx, nextNeededEntry.weather, nextNeededEntry.mutation)
                 lblActionInfo.Text = string.format("Fortschritt F%d: %d/6 Wetter", activeFruitIdx, fruitWeatherCounts[activeFruitIdx])
 
-                if cachedCurW:lower() == nextNeededEntry.weather:lower() then
+                local curClean = cleanString(cachedCurW)
+                local nextClean = cleanString(cachedNextW)
+                local reqClean = cleanString(nextNeededEntry.weather)
+
+                if curClean == reqClean then
                     lblNeeded.Text = "Status: Aktives Wetter passt! Warten auf Mutation..."
                     lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
-                elseif cachedNextW:lower() == nextNeededEntry.weather:lower() then
+                elseif nextClean == reqClean then
                     lblNeeded.Text = "Status: Nächstes Wetter passt! Bereit machen..."
                     lblNeeded.TextColor3 = Color3.fromRGB(255, 220, 80)
                 else
@@ -434,14 +445,12 @@ task.spawn(function()
             -- PHASE 2: Warten auf Huge + Infested (Auto-Hop AUS)
             -- ==========================================
             else
-                -- Auto-Hop sofort komplett stoppen in Phase 2
                 autoHopEnabled = false
                 hopButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
                 hopButton.Text = "Auto-Hop: GESPERRT (Warte auf Huge/Infested)"
 
                 lblPhase.Text = "Phase 2: Warten auf Huge + Infested"
                 
-                -- Prüfe ob alle 4 Früchte Huge und Infested haben
                 local allHugeInfested = true
                 for i = 1, 4 do
                     local spawnObj = fruitMap[i]
@@ -487,11 +496,11 @@ task.spawn(function()
         end)
 
         if not ok then
-            warn("[V28] Fehler:", err)
+            warn("[V29] Fehler:", err)
         end
         
         task.wait(1.5)
     end
 end)
 
-print("[V28] Spirit Fruit Master (Sequential & Phase 2 Mode) erfolgreich geladen!")
+print("[V29] Spirit Fruit Master (Flexible String Match) erfolgreich geladen!")
