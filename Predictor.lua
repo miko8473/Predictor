@@ -40,6 +40,16 @@ local LastNextWeather = nil
 local LastNextTime = "--"
 
 --==================================================
+-- COLORS
+--==================================================
+
+local WHITE = Color3.fromRGB(240, 243, 248)
+local GREEN = Color3.fromRGB(90, 230, 125)
+local RED = Color3.fromRGB(235, 75, 75)
+local YELLOW = Color3.fromRGB(230, 180, 60)
+local GREY = Color3.fromRGB(120, 128, 142)
+
+--==================================================
 -- REMOVE OLD GUI
 --==================================================
 
@@ -168,6 +178,7 @@ local function createCard(y, title)
     corner.CornerRadius = UDim.new(0, 11)
     corner.Parent = card
 
+    -- TITLE
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -20, 0, 20)
     label.Position = UDim2.fromOffset(10, 8)
@@ -175,29 +186,48 @@ local function createCard(y, title)
     label.Text = title
     label.Font = Enum.Font.GothamMedium
     label.TextSize = 10
-    label.TextColor3 = Color3.fromRGB(120, 128, 142)
+    label.TextColor3 = GREY
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = card
 
+    -- WEATHER NAME
     local value = Instance.new("TextLabel")
-    value.Size = UDim2.new(1, -20, 0, 30)
+    value.Size = UDim2.fromOffset(125, 30)
     value.Position = UDim2.fromOffset(10, 28)
     value.BackgroundTransparency = 1
     value.Text = "..."
     value.Font = Enum.Font.GothamBold
-    value.TextSize = 17
-    value.TextColor3 = Color3.fromRGB(240, 243, 248)
+    value.TextSize = 16
+    value.TextColor3 = WHITE
     value.TextXAlignment = Enum.TextXAlignment.Left
+    value.TextTruncate = Enum.TextTruncate.AtEnd
     value.Parent = card
 
-    return card, value
+    -- FOUND / NOT FOUND
+    local result = Instance.new("TextLabel")
+    result.Size = UDim2.new(1, -145, 0, 30)
+    result.Position = UDim2.fromOffset(140, 28)
+    result.BackgroundTransparency = 1
+    result.Text = ""
+    result.Font = Enum.Font.GothamBold
+    result.TextSize = 8
+    result.TextColor3 = GREY
+    result.TextXAlignment = Enum.TextXAlignment.Left
+    result.TextWrapped = true
+    result.Parent = card
+
+    return card, value, result
 end
 
-local CurrentCard, CurrentValue =
+local CurrentCard, CurrentValue, CurrentResult =
     createCard(70, "CURRENT WEATHER")
 
-local NextCard, NextValue =
+local NextCard, NextValue, NextResult =
     createCard(153, "NEXT WEATHER")
+
+--==================================================
+-- NEXT START TIME
+--==================================================
 
 local NextStart = Instance.new("TextLabel")
 NextStart.Size = UDim2.new(1, -30, 0, 18)
@@ -206,7 +236,7 @@ NextStart.BackgroundTransparency = 1
 NextStart.Text = "Start: --"
 NextStart.Font = Enum.Font.GothamMedium
 NextStart.TextSize = 10
-NextStart.TextColor3 = Color3.fromRGB(120, 128, 142)
+NextStart.TextColor3 = GREY
 NextStart.TextXAlignment = Enum.TextXAlignment.Left
 NextStart.Parent = Main
 
@@ -601,7 +631,17 @@ local function getCurrentWeather()
         return "Normal"
     end
 
-    return tostring(value)
+    local weather =
+        tostring(value)
+
+    if weather == ""
+        or weather:lower() == "nil"
+        or weather:lower() == "none" then
+
+        return "Normal"
+    end
+
+    return weather
 end
 
 --==================================================
@@ -630,11 +670,7 @@ local function getNextWeather()
         return nil, nil
     end
 
-    -- THIS IS THE IMPORTANT FIX
-    -- The old working script uses:
-    -- result.key
-    -- result.startTime
-
+    -- EXACT VALUES FROM THE WORKING WEATHER REMOTE
     local nextWeather =
         result.key
 
@@ -653,7 +689,6 @@ local function getNextWeather()
 
         if numericTime then
 
-            -- Unix timestamp -> exact local clock time
             startTime =
                 os.date(
                     "%H:%M:%S",
@@ -696,12 +731,114 @@ local function isSelectedWeather(weather)
                 :gsub("%s+$", "")
 
         if weatherNorm == eventNorm then
-
             return Selected[eventName] == true
         end
     end
 
     return false
+end
+
+--==================================================
+-- UPDATE CURRENT DISPLAY
+--==================================================
+
+local function updateCurrentDisplay(current)
+
+    CurrentValue.Text = current
+
+    -- No weather event is currently running
+    if current == "Normal" then
+
+        CurrentValue.TextColor3 = WHITE
+
+        if countSelected() > 0 then
+
+            CurrentResult.Text =
+                "WAS NOT FOUND BY CURRENT WEATHER"
+
+            CurrentResult.TextColor3 = RED
+
+        else
+
+            CurrentResult.Text =
+                "NO EVENT SELECTED"
+
+            CurrentResult.TextColor3 = GREY
+        end
+
+        return
+    end
+
+    -- Selected event is currently active
+    if isSelectedWeather(current) then
+
+        CurrentValue.TextColor3 = GREEN
+
+        CurrentResult.Text =
+            "FOUND BY CURRENT WEATHER"
+
+        CurrentResult.TextColor3 = GREEN
+
+    else
+
+        CurrentValue.TextColor3 = RED
+
+        CurrentResult.Text =
+            "WAS NOT FOUND BY CURRENT WEATHER"
+
+        CurrentResult.TextColor3 = RED
+    end
+end
+
+--==================================================
+-- UPDATE NEXT DISPLAY
+--==================================================
+
+local function updateNextDisplay(nextWeather, startTime)
+
+    if not nextWeather then
+
+        NextValue.Text = "Lädt..."
+
+        NextValue.TextColor3 = YELLOW
+
+        NextResult.Text =
+            "READING NEXT WEATHER..."
+
+        NextResult.TextColor3 = YELLOW
+
+        NextStart.Text = "Start: --"
+
+        return
+    end
+
+    LastNextWeather = nextWeather
+    LastNextTime = startTime or "--"
+
+    NextValue.Text =
+        LastNextWeather
+
+    NextStart.Text =
+        "Start: " .. LastNextTime
+
+    if isSelectedWeather(nextWeather) then
+
+        NextValue.TextColor3 = GREEN
+
+        NextResult.Text =
+            "FOUND BY NEXT WEATHER"
+
+        NextResult.TextColor3 = GREEN
+
+    else
+
+        NextValue.TextColor3 = RED
+
+        NextResult.Text =
+            "WAS NOT FOUND BY NEXT WEATHER"
+
+        NextResult.TextColor3 = RED
+    end
 end
 
 --==================================================
@@ -716,9 +853,8 @@ local function serverHop()
 
     Hopping = true
 
-    StatusText.Text = "HOP"
-    Dot.BackgroundColor3 =
-        Color3.fromRGB(230, 180, 60)
+    StatusText.Text = "HOPPING..."
+    Dot.BackgroundColor3 = YELLOW
 
     task.spawn(function()
 
@@ -738,6 +874,9 @@ local function serverHop()
         if not success
             or not data
             or not data.data then
+
+            StatusText.Text = "HOP FAILED"
+            Dot.BackgroundColor3 = RED
 
             Hopping = false
             return
@@ -761,6 +900,9 @@ local function serverHop()
         end
 
         if #servers == 0 then
+
+            StatusText.Text = "NO SERVER"
+            Dot.BackgroundColor3 = RED
 
             Hopping = false
             return
@@ -803,14 +945,17 @@ StartButton.MouseButton1Click:Connect(function()
             StatusText.Text =
                 "SELECT EVENT"
 
-            Dot.BackgroundColor3 =
-                Color3.fromRGB(230, 180, 60)
+            Dot.BackgroundColor3 = YELLOW
 
             return
         end
 
         Running = true
+
         StartButton.Text = "STOP"
+
+        StatusText.Text = "RUNNING"
+        Dot.BackgroundColor3 = GREEN
 
     else
 
@@ -821,8 +966,7 @@ StartButton.MouseButton1Click:Connect(function()
 
         StatusText.Text = "OFF"
 
-        Dot.BackgroundColor3 =
-            Color3.fromRGB(220, 70, 70)
+        Dot.BackgroundColor3 = RED
     end
 end)
 
@@ -858,60 +1002,26 @@ task.spawn(function()
     while Gui.Parent do
 
         --==========================================
-        -- CURRENT
+        -- CURRENT WEATHER
         --==========================================
 
         local current =
             getCurrentWeather()
 
-        CurrentValue.Text =
-            current
+        updateCurrentDisplay(current)
 
         --==========================================
-        -- EXACT NEXT
+        -- EXACT NEXT WEATHER
         --==========================================
 
         local nextWeather,
             startTime =
             getNextWeather()
 
-        if nextWeather then
-
-            LastNextWeather =
-                nextWeather
-
-            LastNextTime =
-                startTime or "--"
-
-            NextValue.Text =
-                LastNextWeather
-
-            NextValue.TextColor3 =
-                Color3.fromRGB(
-                    240,
-                    243,
-                    248
-                )
-
-            NextStart.Text =
-                "Start: "
-                .. LastNextTime
-
-        else
-
-            NextValue.Text =
-                "Lädt..."
-
-            NextValue.TextColor3 =
-                Color3.fromRGB(
-                    230,
-                    180,
-                    60
-                )
-
-            NextStart.Text =
-                "Start: --"
-        end
+        updateNextDisplay(
+            nextWeather,
+            startTime
+        )
 
         --==========================================
         -- AUTO FARM DECISION
@@ -930,90 +1040,57 @@ task.spawn(function()
 
         elseif countSelected() == 0 then
 
-            StatusText.Text = "NONE"
+            StatusText.Text = "NO EVENT"
 
             Dot.BackgroundColor3 =
-                Color3.fromRGB(
-                    230,
-                    180,
-                    60
-                )
+                YELLOW
 
         elseif isSelectedWeather(current) then
 
-            -- CURRENT IS TARGET
+            -- CURRENT TARGET FOUND
+            -- STAY IN SERVER
 
             StatusText.Text =
-                "CURRENT FOUND"
+                "CURRENT TARGET"
 
             Dot.BackgroundColor3 =
-                Color3.fromRGB(
-                    70,
-                    210,
-                    110
-                )
-
-            CurrentValue.TextColor3 =
-                Color3.fromRGB(
-                    90,
-                    230,
-                    125
-                )
+                GREEN
 
         elseif nextWeather
             and isSelectedWeather(nextWeather) then
 
-            -- NEXT IS TARGET
+            -- NEXT TARGET FOUND
+            -- STAY IN SERVER
 
             StatusText.Text =
-                "NEXT FOUND"
+                "NEXT TARGET"
 
             Dot.BackgroundColor3 =
-                Color3.fromRGB(
-                    70,
-                    210,
-                    110
-                )
-
-            NextValue.TextColor3 =
-                Color3.fromRGB(
-                    90,
-                    230,
-                    125
-                )
+                GREEN
 
         elseif nextWeather then
 
-            -- WE KNOW EXACTLY WHAT IS NEXT
-            -- AND IT IS NOT SELECTED
+            -- EXACT NEXT WEATHER IS KNOWN
+            -- BUT IT IS NOT SELECTED
+            -- HOP TO ANOTHER SERVER
 
             StatusText.Text =
-                "NO TARGET → HOP"
+                "HOPPING..."
 
             Dot.BackgroundColor3 =
-                Color3.fromRGB(
-                    230,
-                    180,
-                    60
-                )
+                YELLOW
 
             serverHop()
 
         else
 
-            -- We haven't received the server's
-            -- actual forecast yet.
-            -- Do NOT hop blindly.
+            -- WAIT FOR EXACT NEXT WEATHER
 
             StatusText.Text =
-                "READING NEXT..."
+                "READING..."
 
             Dot.BackgroundColor3 =
-                Color3.fromRGB(
-                    230,
-                    180,
-                    60
-                )
+                YELLOW
         end
 
         task.wait(2)
