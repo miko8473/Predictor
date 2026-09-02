@@ -1,1 +1,1 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/miko8473/Predictor/refs/heads/main/Predictor.lua?time=" .. tick()))()
+loadstring(game:HttpGet("https://raw.githack.com/miko8473/Predictor/main/Predictor.lua"))()
