@@ -1,5 +1,5 @@
 -- ===================================================
--- SPIRIT FRUIT SMART GRINDER (Mit GetNextWeather & Auto-Hop)
+-- SPIRIT FRUIT SMART GRINDER (Multi-Frucht Prioritäts-Logik)
 -- ===================================================
 
 local Players = game:GetService("Players")
@@ -9,7 +9,7 @@ local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 
-print("[SmartGrinder] Gestartet mit Wetter-Vorschau. JobId:", game.JobId)
+print("[SmartGrinder] Gestartet mit Multi-Frucht Logik. JobId:", game.JobId)
 
 -- Die 6 Wetter-Mutationen mit ihren Events
 local WEATHER_ORDER = {
@@ -70,7 +70,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -16, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(Mit Wetter-Vorschau)</font>"
+titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(Multi-Frucht)</font>"
 titleLabel.RichText = true
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
@@ -204,7 +204,6 @@ local function getActiveWeather()
     return "Unknown"
 end
 
--- Smarte Funktion für die nächste Wetter-Vorschau
 local function getNextWeather()
     for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
         if desc.Name == "GetNextWeather" and desc:IsA("RemoteFunction") then
@@ -332,9 +331,9 @@ task.spawn(function()
                 }
             end
 
-            -- WETTER-SAMMEL-PHASE MIT VORSCHAU-LOGIK
+            -- WETTER-SAMMEL-PHASE (MULTI-FRUCHT-PRIORITÄT)
             if not allWeatherComplete then
-                lblPhase.Text = "Status: Sammle 6 Wetter-Mutationen"
+                local allMissingWeathers = {}
 
                 for i = 1, 4 do
                     local dat = fruitDataList[i]
@@ -344,41 +343,53 @@ task.spawn(function()
                     else
                         fruitLabels[i].Text = string.format("Frucht %d: %d/6 Mutationen", i, dat.count)
                         fruitLabels[i].TextColor3 = Color3.fromRGB(255, 170, 80)
+
+                        for _, missingEntry in ipairs(dat.missing) do
+                            table.insert(allMissingWeathers, {
+                                fruitIdx = i,
+                                weather = missingEntry.weather,
+                                mutation = missingEntry.mutation
+                            })
+                        end
                     end
                 end
-                
-                local activeFruitIdx = 1
-                for i = 1, 4 do
-                    if fruitDataList[i].count < #WEATHER_ORDER then
-                        activeFruitIdx = i
+
+                lblPhase.Text = string.format("Status: Suche %d fehlende Mutationen", #allMissingWeathers)
+
+                local curClean = cleanString(cachedCurW)
+                local nextClean = cleanString(cachedNextW)
+
+                local matchedReq = nil
+                for _, req in ipairs(allMissingWeathers) do
+                    local reqClean = cleanString(req.weather)
+                    if curClean == reqClean or nextClean == reqClean then
+                        matchedReq = req
                         break
                     end
                 end
 
-                local neededWeathers = fruitDataList[activeFruitIdx].missing
-                local nextNeededEntry = neededWeathers[1]
-
-                if nextNeededEntry then
-                    lblTarget.Text = string.format("Ziel: F%d braucht '%s' (%s)", activeFruitIdx, nextNeededEntry.weather, nextNeededEntry.mutation)
-
-                    local curClean = cleanString(cachedCurW)
-                    local nextClean = cleanString(cachedNextW)
-                    local reqClean = cleanString(nextNeededEntry.weather)
-
-                    -- INTELLIGENTE ENTSCHEIDUNG: Bleiben wenn aktuell ODER nächste passt!
-                    if curClean == reqClean then
+                if matchedReq then
+                    if cleanString(matchedReq.weather) == curClean then
+                        lblTarget.Text = string.format("Ziel: F%d braucht '%s' (%s)", matchedReq.fruitIdx, matchedReq.weather, matchedReq.mutation)
                         lblNeeded.Text = "Wetter aktiv! Bleibe auf Server..."
                         lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
-                    elseif nextClean == reqClean then
+                    else
+                        lblTarget.Text = string.format("Ziel: F%d braucht '%s' (%s)", matchedReq.fruitIdx, matchedReq.weather, matchedReq.mutation)
                         lblNeeded.Text = "Nächstes Wetter passt! Warte..."
                         lblNeeded.TextColor3 = Color3.fromRGB(255, 220, 80)
+                    end
+                else
+                    if #allMissingWeathers > 0 then
+                        local firstReq = allMissingWeathers[1]
+                        lblTarget.Text = string.format("Ziel: F%d braucht '%s' (%s)", firstReq.fruitIdx, firstReq.weather, firstReq.mutation)
                     else
-                        lblNeeded.Text = "Wetter passt nicht -> Hoppe"
-                        lblNeeded.TextColor3 = Color3.fromRGB(220, 100, 100)
+                        lblTarget.Text = "Ziel: Keine offenen Mutationen"
+                    end
+                    lblNeeded.Text = "Wetter passt nicht -> Hoppe"
+                    lblNeeded.TextColor3 = Color3.fromRGB(220, 100, 100)
 
-                        if autoHopEnabled then
-                            triggerServerHop()
-                        end
+                    if autoHopEnabled then
+                        triggerServerHop()
                     end
                 end
 
@@ -410,5 +421,3 @@ task.spawn(function()
         task.wait(1.5)
     end
 end)
-
-print("[SmartGrinder] Erfolgreich geladen!")
