@@ -29,7 +29,7 @@ local EVENTS = {
 
 local Selected = {}
 for _, eventName in ipairs(EVENTS) do
-    Selected[eventName] = true -- Standardmäßig alle für Wetter-Hop aktivieren
+    Selected[eventName] = true
 end
 
 local Running = false
@@ -43,7 +43,7 @@ local LastNextTime = "--"
 -- SAVED SETTINGS
 --==================================================
 
-local SETTINGS_KEY = "GreedyGrowersMaxMutationsSettingsV1"
+local SETTINGS_KEY = "GreedyGrowersMaxMutationsSettingsV2"
 
 pcall(function()
     local saved = TeleportService:GetTeleportSetting(SETTINGS_KEY)
@@ -329,7 +329,7 @@ AutoTitle.Position = UDim2.fromOffset(10, 0)
 AutoTitle.BackgroundTransparency = 1
 AutoTitle.Text = "Weather Filter Settings"
 AutoTitle.Font = Enum.Font.GothamBold
-AutoTitle.TextSize:let = 11
+AutoTitle.TextSize = 11
 AutoTitle.TextColor3 = Color3.fromRGB(200, 205, 215)
 AutoTitle.TextXAlignment = Enum.TextXAlignment.Left
 AutoTitle.Parent = AutoHeader
@@ -536,36 +536,35 @@ end
 -- PLOT & FRUIT LOGIC (MAX MUTATIONS AUTOMATION)
 --==================================================
 
--- Hier werden alle erforderlichen Mutationen definiert, die eine Frucht haben muss (Infested und Huge durch Pets)
 local REQUIRED_MUTATIONS = {
     "Dewy", "Dusty", "Frosted", "Shocked", "Infested", "Radioactive", "Golden", "Cosmic", "HUGE"
 }
 
 local function findMyPlot()
-    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("PlayerPlots")
-    if not plots then return nil end
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("PlayerPlots") or Workspace
     for _, plot in ipairs(plots:GetChildren()) do
-        local owner = plot:FindFirstChild("Owner") or plot:FindFirstChild("Sign")
         pcall(function()
-            if owner and (owner.Value == LocalPlayer or owner.Text:find(LocalPlayer.Name)) then
+            local owner = plot:FindFirstChild("Owner") or plot:FindFirstChild("Sign")
+            if owner then
+                if owner:IsA("ValueBase") and (owner.Value == LocalPlayer or owner.Value == LocalPlayer.Name) then
+                    return plot
+                elseif owner:IsA("TextLabel") and owner.Text:find(LocalPlayer.Name) then
+                    return plot
+                end
+            end
+            if plot.Name == LocalPlayer.Name or plot:FindFirstChild(LocalPlayer.Name) then
                 return plot
             end
         end)
-        if plot.Name == LocalPlayer.Name or plot:FindFirstChild(LocalPlayer.Name) then
-            return plot
-        end
     end
-    return plots:GetChildren()[1] -- Fallback
+    return nil
 end
 
 local function getFruitsFromPlot()
-    local plot = findMyPlot()
+    local plot = findMyPlot() or Workspace
     local fruits = {}
-    if not plot then return fruits end
-
-    -- Sucht nach Pflanzen/Früchten im Plot (angepasst an gängige Tycoon/Bau-Strukturen)
     for _, obj in ipairs(plot:GetDescendants()) do
-        if obj:IsA("Model") and (obj.Name:lower():find("fruit") or obj.Name:lower():find("plant") or obj:FindFirstChild("Mutations")) then
+        if obj:IsA("Model") and (obj.Name:lower():find("fruit") or obj.Name:lower():find("plant") or obj:FindFirstChild("Mutations") or obj:FindFirstChild("PrimaryPart")) then
             table.insert(fruits, obj)
         end
     end
@@ -574,7 +573,6 @@ end
 
 local function getFruitMutations(fruit)
     local mutationsFound = {}
-    -- Prüft Attribute, Werte oder Unterordner im Modell auf Mutationen
     for _, desc in ipairs(fruit:GetDescendants()) do
         for _, req in ipairs(REQUIRED_MUTATIONS) do
             if desc.Name:lower():find(req:lower()) or (desc:IsA("ValueBase") and tostring(desc.Value):lower():find(req:lower())) then
@@ -587,13 +585,18 @@ end
 
 local function checkAllFruitsHaveMaxMutations()
     local fruits = getFruitsFromPlot()
-    if #fruits == 0 then return false, "Keine Früchte gefunden" end
+    if #fruits == 0 then return false, "Keine Früchte" end
 
     for _, fruit in ipairs(fruits) do
         local mutations = getFruitMutations(fruit)
         for _, req in ipairs(REQUIRED_MUTATIONS) do
             if not mutations[req] then
-                return false, req -- Gibt die erste fehlende Mutation der ersten unvollständigen Frucht zurück!
+                -- Falls es Huge oder Infested ist (Pets), ignorieren wir das Wetter-Hoppen für diese Frucht und gehen zur nächsten
+                if req:lower() == "huge" or req:lower() == "infested" then
+                    -- Überspringen, da Pets das machen
+                else
+                    return false, req -- Gibt das fehlende Wetter zurück
+                end
             end
         end
     end
@@ -604,7 +607,6 @@ local function harvestAndSellAll()
     StatusText.Text = "ERNTE & VERKAUFE..."
     Dot.BackgroundColor3 = YELLOW
 
-    -- Ernte-Logik (Remote oder ProximityPrompt)
     pcall(function()
         for _, fruit in ipairs(getFruitsFromPlot()) do
             local prompt = fruit:FindFirstChildWhichIsA("ProximityPrompt", true)
@@ -616,7 +618,6 @@ local function harvestAndSellAll()
 
     task.wait(1)
 
-    -- Verkauf-Logik (Interaktion mit Verkaufspunkt/Shop)
     pcall(function()
         local sellRemote = ReplicatedStorage:FindFirstChild("Events", true):FindFirstChild("Sell") or ReplicatedStorage:FindFirstChild("SellRemote", true)
         if sellRemote and sellRemote:IsA("RemoteEvent") then
@@ -710,13 +711,12 @@ end)
 --==================================================
 
 task.spawn(function()
-    task.wait(3) -- Kurz warten beim Start
+    task.wait(3)
 
     while Gui.Parent do
         local current = getCurrentWeather()
         local nextWeather, startTime = getNextWeather()
 
-        -- UI Aktualisieren für Wetter-Displays
         CurrentValue.Text = current
         LastNextWeather = nextWeather
         LastNextTime = startTime or "--"
@@ -735,12 +735,9 @@ task.spawn(function()
             local allReady, missingInfo = checkAllFruitsHaveMaxMutations()
 
             if allReady then
-                -- Wenn alle Früchte alles haben -> Ernten & Verkaufen!
                 harvestAndSellAll()
                 task.wait(5)
             else
-                -- Prüfen, ob der Frucht ein wetterabhängiges Merkmal fehlt
-                -- missingInfo enthält z.B. das fehlende Wetter wie "Acid Rain" oder "Rainbow"
                 local needsWeather = false
                 for _, eventName in ipairs(EVENTS) do
                     if missingInfo and missingInfo:lower() == eventName:lower() then
@@ -750,22 +747,19 @@ task.spawn(function()
                 end
 
                 if needsWeather then
-                    -- Schauen, ob das benötigte Wetter gerade da ist oder als nächstes kommt
                     local currentMatches = (current:lower() == missingInfo:lower())
                     local nextMatches = (nextWeather and nextWeather:lower() == missingInfo:lower())
 
                     if currentMatches or nextMatches then
                         StatusText.Text = "WARTE AUF MUTATION (" .. missingInfo .. ")"
                         Dot.BackgroundColor3 = GREEN
-                        -- Bleiben und warten, bis die Mutation eintrifft
                     else
                         StatusText.Text = "SUCHE WETTER: " .. missingInfo
                         Dot.BackgroundColor3 = YELLOW
                         serverHop()
                     end
                 else
-                    -- Wenn es keine wetterabhängige Mutation ist (oder Pets sie holen), einfach weiterlaufen lassen
-                    StatusText.Text = "FARMING (FEHLT: " .. tostring(missingInfo) .. ")"
+                    StatusText.Text = "WURDE DURCH PETS ERLEDIGT"
                     Dot.BackgroundColor3 = GREEN
                 end
             end
