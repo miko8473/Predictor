@@ -47,18 +47,11 @@ local LastNextTime = "--"
 local SETTINGS_KEY = "GreedyGrowersAutoFarmSettings"
 
 pcall(function()
-
-    local saved =
-        TeleportService:GetTeleportSetting(
-            SETTINGS_KEY
-        )
+    local saved = TeleportService:GetTeleportSetting(SETTINGS_KEY)
 
     if type(saved) == "table" then
-
         if type(saved.Selected) == "table" then
-
             for _, eventName in ipairs(EVENTS) do
-
                 if saved.Selected[eventName] == true then
                     Selected[eventName] = true
                 end
@@ -72,23 +65,17 @@ pcall(function()
 end)
 
 local function saveSettings()
-
     pcall(function()
-
         local data = {
             Selected = {},
             Running = Running
         }
 
         for _, eventName in ipairs(EVENTS) do
-            data.Selected[eventName] =
-                Selected[eventName] == true
+            data.Selected[eventName] = Selected[eventName] == true
         end
 
-        TeleportService:SetTeleportSetting(
-            SETTINGS_KEY,
-            data
-        )
+        TeleportService:SetTeleportSetting(SETTINGS_KEY, data)
     end)
 end
 
@@ -96,117 +83,49 @@ end
 -- COLORS
 --==================================================
 
-local WHITE =
-    Color3.fromRGB(240, 243, 248)
-
-local GREEN =
-    Color3.fromRGB(90, 230, 125)
-
-local RED =
-    Color3.fromRGB(235, 75, 75)
-
-local YELLOW =
-    Color3.fromRGB(230, 180, 60)
-
-local GREY =
-    Color3.fromRGB(120, 128, 142)
+local WHITE = Color3.fromRGB(240, 243, 248)
+local GREEN = Color3.fromRGB(90, 230, 125)
+local RED = Color3.fromRGB(235, 75, 75)
+local YELLOW = Color3.fromRGB(230, 180, 60)
+local GREY = Color3.fromRGB(120, 128, 142)
 
 --==================================================
 -- REMOVE OLD GUI
 --==================================================
 
 pcall(function()
-
-    local old =
-        CoreGui:FindFirstChild(
-            "GreedyGrowersAutoFarm"
-        )
-
+    local old = CoreGui:FindFirstChild("GreedyGrowersAutoFarm")
     if old then
         old:Destroy()
     end
-
 end)
 
 --==================================================
 -- GUI
 --==================================================
 
-local Gui =
-    Instance.new("ScreenGui")
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "GreedyGrowersAutoFarm"
+Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = CoreGui
 
-Gui.Name =
-    "GreedyGrowersAutoFarm"
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(350, 475)
+Main.Position = UDim2.new(0.5, -175, 0.5, -237)
+Main.BackgroundColor3 = Color3.fromRGB(15, 17, 22)
+Main.BorderSizePixel = 0
+Main.Parent = Gui
 
-Gui.ResetOnSpawn =
-    false
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 16)
+MainCorner.Parent = Main
 
-Gui.ZIndexBehavior =
-    Enum.ZIndexBehavior.Sibling
-
-Gui.Parent =
-    CoreGui
-
-local Main =
-    Instance.new("Frame")
-
-Main.Size =
-    UDim2.fromOffset(
-        350,
-        475
-    )
-
-Main.Position =
-    UDim2.new(
-        0.5,
-        -175,
-        0.5,
-        -237
-    )
-
-Main.BackgroundColor3 =
-    Color3.fromRGB(
-        15,
-        17,
-        22
-    )
-
-Main.BorderSizePixel =
-    0
-
-Main.Parent =
-    Gui
-
-local MainCorner =
-    Instance.new("UICorner")
-
-MainCorner.CornerRadius =
-    UDim.new(
-        0,
-        16
-    )
-
-MainCorner.Parent =
-    Main
-
-local MainStroke =
-    Instance.new("UIStroke")
-
-MainStroke.Color =
-    Color3.fromRGB(
-        55,
-        60,
-        72
-    )
-
-MainStroke.Thickness =
-    1
-
-MainStroke.Transparency =
-    0.35
-
-MainStroke.Parent =
-    Main
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(55, 60, 72)
+MainStroke.Thickness = 1
+MainStroke.Transparency = 0.35
+MainStroke.Parent = Main
 
 --==================================================
 -- DRAG
@@ -217,12 +136,7 @@ local dragStart
 local startPos
 
 Main.InputBegan:Connect(function(input)
-
-    if input.UserInputType ==
-        Enum.UserInputType.MouseButton1
-        or input.UserInputType ==
-        Enum.UserInputType.Touch then
-
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = Main.Position
@@ -230,38 +144,22 @@ Main.InputBegan:Connect(function(input)
 end)
 
 Main.InputEnded:Connect(function(input)
-
-    if input.UserInputType ==
-        Enum.UserInputType.MouseButton1
-        or input.UserInputType ==
-        Enum.UserInputType.Touch then
-
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = false
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
+    if not dragging then return end
 
-    if not dragging then
-        return
-    end
-
-    if input.UserInputType ==
-        Enum.UserInputType.MouseMovement
-        or input.UserInputType ==
-        Enum.UserInputType.Touch then
-
-        local delta =
-            input.Position -
-            dragStart
-
-        Main.Position =
-            UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
     end
 end)
 
@@ -269,854 +167,263 @@ end)
 -- TITLE
 --==================================================
 
-local Title =
-    Instance.new("TextLabel")
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 0, 34)
+Title.Position = UDim2.fromOffset(15, 12)
+Title.BackgroundTransparency = 1
+Title.Text = "GREEDY GROWERS"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextColor3 = Color3.fromRGB(245, 247, 250)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
 
-Title.Size =
-    UDim2.new(
-        1,
-        -30,
-        0,
-        34
-    )
-
-Title.Position =
-    UDim2.fromOffset(
-        15,
-        12
-    )
-
-Title.BackgroundTransparency =
-    1
-
-Title.Text =
-    "GREEDY GROWERS"
-
-Title.Font =
-    Enum.Font.GothamBold
-
-Title.TextSize =
-    18
-
-Title.TextColor3 =
-    Color3.fromRGB(
-        245,
-        247,
-        250
-    )
-
-Title.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Title.Parent =
-    Main
-
-local Subtitle =
-    Instance.new("TextLabel")
-
-Subtitle.Size =
-    UDim2.new(
-        1,
-        -30,
-        0,
-        20
-    )
-
-Subtitle.Position =
-    UDim2.fromOffset(
-        15,
-        39
-    )
-
-Subtitle.BackgroundTransparency =
-    1
-
-Subtitle.Text =
-    "WEATHER AUTO FARM"
-
-Subtitle.Font =
-    Enum.Font.GothamMedium
-
-Subtitle.TextSize =
-    10
-
-Subtitle.TextColor3 =
-    Color3.fromRGB(
-        125,
-        132,
-        145
-    )
-
-Subtitle.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Subtitle.Parent =
-    Main
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Size = UDim2.new(1, -30, 0, 20)
+Subtitle.Position = UDim2.fromOffset(15, 39)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "WEATHER AUTO FARM"
+Subtitle.Font = Enum.Font.GothamMedium
+Subtitle.TextSize = 10
+Subtitle.TextColor3 = Color3.fromRGB(125, 132, 145)
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.Parent = Main
 
 --==================================================
 -- WEATHER CARDS
 --==================================================
 
 local function createCard(y, title)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -30, 0, 75)
+    card.Position = UDim2.fromOffset(15, y)
+    card.BackgroundColor3 = Color3.fromRGB(21, 24, 31)
+    card.BorderSizePixel = 0
+    card.Parent = Main
 
-    local card =
-        Instance.new("Frame")
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 11)
+    corner.Parent = card
 
-    card.Size =
-        UDim2.new(
-            1,
-            -30,
-            0,
-            75
-        )
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 20)
+    label.Position = UDim2.fromOffset(10, 8)
+    label.BackgroundTransparency = 1
+    label.Text = title
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 10
+    label.TextColor3 = GREY
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = card
 
-    card.Position =
-        UDim2.fromOffset(
-            15,
-            y
-        )
+    local value = Instance.new("TextLabel")
+    value.Size = UDim2.fromOffset(125, 30)
+    value.Position = UDim2.fromOffset(10, 28)
+    value.BackgroundTransparency = 1
+    value.Text = "..."
+    value.Font = Enum.Font.GothamBold
+    value.TextSize = 16
+    value.TextColor3 = WHITE
+    value.TextXAlignment = Enum.TextXAlignment.Left
+    value.TextTruncate = Enum.TextTruncate.AtEnd
+    value.Parent = card
 
-    card.BackgroundColor3 =
-        Color3.fromRGB(
-            21,
-            24,
-            31
-        )
-
-    card.BorderSizePixel =
-        0
-
-    card.Parent =
-        Main
-
-    local corner =
-        Instance.new("UICorner")
-
-    corner.CornerRadius =
-        UDim.new(
-            0,
-            11
-        )
-
-    corner.Parent =
-        card
-
-    local label =
-        Instance.new("TextLabel")
-
-    label.Size =
-        UDim2.new(
-            1,
-            -20,
-            0,
-            20
-        )
-
-    label.Position =
-        UDim2.fromOffset(
-            10,
-            8
-        )
-
-    label.BackgroundTransparency =
-        1
-
-    label.Text =
-        title
-
-    label.Font =
-        Enum.Font.GothamMedium
-
-    label.TextSize =
-        10
-
-    label.TextColor3 =
-        GREY
-
-    label.TextXAlignment =
-        Enum.TextXAlignment.Left
-
-    label.Parent =
-        card
-
-    -- WEATHER NAME
-
-    local value =
-        Instance.new("TextLabel")
-
-    value.Size =
-        UDim2.fromOffset(
-            125,
-            30
-        )
-
-    value.Position =
-        UDim2.fromOffset(
-            10,
-            28
-        )
-
-    value.BackgroundTransparency =
-        1
-
-    value.Text =
-        "..."
-
-    value.Font =
-        Enum.Font.GothamBold
-
-    value.TextSize =
-        16
-
-    value.TextColor3 =
-        WHITE
-
-    value.TextXAlignment =
-        Enum.TextXAlignment.Left
-
-    value.TextTruncate =
-        Enum.TextTruncate.AtEnd
-
-    value.Parent =
-        card
-
-    -- RESULT
-
-    local result =
-        Instance.new("TextLabel")
-
-    result.Size =
-        UDim2.new(
-            1,
-            -145,
-            0,
-            30
-        )
-
-    result.Position =
-        UDim2.fromOffset(
-            140,
-            28
-        )
-
-    result.BackgroundTransparency =
-        1
-
-    result.Text =
-        ""
-
-    result.Font =
-        Enum.Font.GothamBold
-
-    result.TextSize =
-        8
-
-    result.TextColor3 =
-        GREY
-
-    result.TextXAlignment =
-        Enum.TextXAlignment.Left
-
-    result.TextWrapped =
-        true
-
-    result.Parent =
-        card
+    local result = Instance.new("TextLabel")
+    result.Size = UDim2.new(1, -145, 0, 30)
+    result.Position = UDim2.fromOffset(140, 28)
+    result.BackgroundTransparency = 1
+    result.Text = ""
+    result.Font = Enum.Font.GothamBold
+    result.TextSize = 8
+    result.TextColor3 = GREY
+    result.TextXAlignment = Enum.TextXAlignment.Left
+    result.TextWrapped = true
+    result.Parent = card
 
     return card, value, result
 end
 
-local CurrentCard,
-    CurrentValue,
-    CurrentResult =
-    createCard(
-        70,
-        "CURRENT WEATHER"
-    )
-
-local NextCard,
-    NextValue,
-    NextResult =
-    createCard(
-        153,
-        "NEXT WEATHER"
-    )
+local CurrentCard, CurrentValue, CurrentResult = createCard(70, "CURRENT WEATHER")
+local NextCard, NextValue, NextResult = createCard(153, "NEXT WEATHER")
 
 --==================================================
 -- NEXT START TIME
 --==================================================
 
-local NextStart =
-    Instance.new("TextLabel")
-
-NextStart.Size =
-    UDim2.new(
-        1,
-        -30,
-        0,
-        18
-    )
-
-NextStart.Position =
-    UDim2.fromOffset(
-        15,
-        230
-    )
-
-NextStart.BackgroundTransparency =
-    1
-
-NextStart.Text =
-    "Start: --"
-
-NextStart.Font =
-    Enum.Font.GothamMedium
-
-NextStart.TextSize =
-    10
-
-NextStart.TextColor3 =
-    GREY
-
-NextStart.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-NextStart.Parent =
-    Main
+local NextStart = Instance.new("TextLabel")
+NextStart.Size = UDim2.new(1, -30, 0, 18)
+NextStart.Position = UDim2.fromOffset(15, 230)
+NextStart.BackgroundTransparency = 1
+NextStart.Text = "Start: --"
+NextStart.Font = Enum.Font.GothamMedium
+NextStart.TextSize = 10
+NextStart.TextColor3 = GREY
+NextStart.TextXAlignment = Enum.TextXAlignment.Left
+NextStart.Parent = Main
 
 --==================================================
 -- AUTOFARM HEADER
 --==================================================
 
-local AutoHeader =
-    Instance.new("TextButton")
+local AutoHeader = Instance.new("TextButton")
+AutoHeader.Size = UDim2.new(1, -30, 0, 34)
+AutoHeader.Position = UDim2.fromOffset(15, 253)
+AutoHeader.BackgroundColor3 = Color3.fromRGB(25, 28, 36)
+AutoHeader.BorderSizePixel = 0
+AutoHeader.Text = ""
+AutoHeader.AutoButtonColor = false
+AutoHeader.Parent = Main
 
-AutoHeader.Size =
-    UDim2.new(
-        1,
-        -30,
-        0,
-        34
-    )
+local AutoCorner = Instance.new("UICorner")
+AutoCorner.CornerRadius = UDim.new(0, 9)
+AutoCorner.Parent = AutoHeader
 
-AutoHeader.Position =
-    UDim2.fromOffset(
-        15,
-        253
-    )
+local AutoTitle = Instance.new("TextLabel")
+AutoTitle.Size = UDim2.new(1, -70, 1, 0)
+AutoTitle.Position = UDim2.fromOffset(12, 0)
+AutoTitle.BackgroundTransparency = 1
+AutoTitle.Text = "AutoFarm Mutations"
+AutoTitle.Font = Enum.Font.GothamBold
+AutoTitle.TextSize = 12
+AutoTitle.TextColor3 = Color3.fromRGB(235, 238, 244)
+AutoTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoTitle.Parent = AutoHeader
 
-AutoHeader.BackgroundColor3 =
-    Color3.fromRGB(
-        25,
-        28,
-        36
-    )
+local CountLabel = Instance.new("TextLabel")
+CountLabel.Size = UDim2.fromOffset(45, 34)
+CountLabel.Position = UDim2.new(1, -70, 0, 0)
+CountLabel.BackgroundTransparency = 1
+CountLabel.Text = "0/7"
+CountLabel.Font = Enum.Font.GothamBold
+CountLabel.TextSize = 10
+CountLabel.TextColor3 = Color3.fromRGB(125, 132, 145)
+CountLabel.Parent = AutoHeader
 
-AutoHeader.BorderSizePixel =
-    0
-
-AutoHeader.Text =
-    ""
-
-AutoHeader.AutoButtonColor =
-    false
-
-AutoHeader.Parent =
-    Main
-
-local AutoCorner =
-    Instance.new("UICorner")
-
-AutoCorner.CornerRadius =
-    UDim.new(
-        0,
-        9
-    )
-
-AutoCorner.Parent =
-    AutoHeader
-
-local AutoTitle =
-    Instance.new("TextLabel")
-
-AutoTitle.Size =
-    UDim2.new(
-        1,
-        -70,
-        1,
-        0
-    )
-
-AutoTitle.Position =
-    UDim2.fromOffset(
-        12,
-        0
-    )
-
-AutoTitle.BackgroundTransparency =
-    1
-
-AutoTitle.Text =
-    "AutoFarm Mutations"
-
-AutoTitle.Font =
-    Enum.Font.GothamBold
-
-AutoTitle.TextSize =
-    12
-
-AutoTitle.TextColor3 =
-    Color3.fromRGB(
-        235,
-        238,
-        244
-    )
-
-AutoTitle.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-AutoTitle.Parent =
-    AutoHeader
-
-local CountLabel =
-    Instance.new("TextLabel")
-
-CountLabel.Size =
-    UDim2.fromOffset(
-        45,
-        34
-    )
-
-CountLabel.Position =
-    UDim2.new(
-        1,
-        -70,
-        0,
-        0
-    )
-
-CountLabel.BackgroundTransparency =
-    1
-
-CountLabel.Text =
-    "0/7"
-
-CountLabel.Font =
-    Enum.Font.GothamBold
-
-CountLabel.TextSize =
-    10
-
-CountLabel.TextColor3 =
-    Color3.fromRGB(
-        125,
-        132,
-        145
-    )
-
-CountLabel.Parent =
-    AutoHeader
-
-local Arrow =
-    Instance.new("TextLabel")
-
-Arrow.Size =
-    UDim2.fromOffset(
-        20,
-        34
-    )
-
-Arrow.Position =
-    UDim2.new(
-        1,
-        -27,
-        0,
-        0
-    )
-
-Arrow.BackgroundTransparency =
-    1
-
-Arrow.Text =
-    ">"
-
-Arrow.Font =
-    Enum.Font.GothamBold
-
-Arrow.TextSize =
-    16
-
-Arrow.TextColor3 =
-    Color3.fromRGB(
-        200,
-        205,
-        215
-    )
-
-Arrow.Parent =
-    AutoHeader
+local Arrow = Instance.new("TextLabel")
+Arrow.Size = UDim2.fromOffset(20, 34)
+Arrow.Position = UDim2.new(1, -27, 0, 0)
+Arrow.BackgroundTransparency = 1
+Arrow.Text = ">"
+Arrow.Font = Enum.Font.GothamBold
+Arrow.TextSize = 16
+Arrow.TextColor3 = Color3.fromRGB(200, 205, 215)
+Arrow.Parent = AutoHeader
 
 --==================================================
 -- START / STOP
 --==================================================
 
-local StartButton =
-    Instance.new("TextButton")
+local StartButton = Instance.new("TextButton")
+StartButton.Size = UDim2.new(1, -30, 0, 38)
+StartButton.Position = UDim2.fromOffset(15, 292)
+StartButton.BackgroundColor3 = Color3.fromRGB(35, 39, 49)
+StartButton.BorderSizePixel = 0
+StartButton.Text = Running and "STOP" or "START"
+StartButton.Font = Enum.Font.GothamBold
+StartButton.TextSize = 12
+StartButton.TextColor3 = Color3.fromRGB(235, 238, 244)
+StartButton.AutoButtonColor = false
+StartButton.Parent = Main
 
-StartButton.Size =
-    UDim2.new(
-        1,
-        -30,
-        0,
-        38
-    )
-
-StartButton.Position =
-    UDim2.fromOffset(
-        15,
-        292
-    )
-
-StartButton.BackgroundColor3 =
-    Color3.fromRGB(
-        35,
-        39,
-        49
-    )
-
-StartButton.BorderSizePixel =
-    0
-
-StartButton.Text =
-    Running and "STOP" or "START"
-
-StartButton.Font =
-    Enum.Font.GothamBold
-
-StartButton.TextSize =
-    12
-
-StartButton.TextColor3 =
-    Color3.fromRGB(
-        235,
-        238,
-        244
-    )
-
-StartButton.AutoButtonColor =
-    false
-
-StartButton.Parent =
-    Main
-
-local StartCorner =
-    Instance.new("UICorner")
-
-StartCorner.CornerRadius =
-    UDim.new(
-        0,
-        10
-    )
-
-StartCorner.Parent =
-    StartButton
+local StartCorner = Instance.new("UICorner")
+StartCorner.CornerRadius = UDim.new(0, 10)
+StartCorner.Parent = StartButton
 
 --==================================================
 -- STATUS
 --==================================================
 
-local StatusText =
-    Instance.new("TextLabel")
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, -60, 0, 22)
+StatusText.Position = UDim2.fromOffset(37, 436)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = Running and "RUNNING" or "OFF"
+StatusText.Font = Enum.Font.GothamBold
+StatusText.TextSize = 10
+StatusText.TextColor3 = Running and GREEN or GREY
+StatusText.TextXAlignment = Enum.TextXAlignment.Left
+StatusText.Parent = Main
 
-StatusText.Size =
-    UDim2.new(
-        1,
-        -60,
-        0,
-        22
-    )
+local Dot = Instance.new("Frame")
+Dot.Size = UDim2.fromOffset(8, 8)
+Dot.Position = UDim2.fromOffset(18, 443)
+Dot.BackgroundColor3 = Running and GREEN or RED
+Dot.BorderSizePixel = 0
+Dot.Parent = Main
 
-StatusText.Position =
-    UDim2.fromOffset(
-        37,
-        436
-    )
-
-StatusText.BackgroundTransparency =
-    1
-
-StatusText.Text =
-    Running and "RUNNING" or "OFF"
-
-StatusText.Font =
-    Enum.Font.GothamBold
-
-StatusText.TextSize =
-    10
-
-StatusText.TextColor3 =
-    Running and GREEN or GREY
-
-StatusText.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-StatusText.Parent =
-    Main
-
-local Dot =
-    Instance.new("Frame")
-
-Dot.Size =
-    UDim2.fromOffset(
-        8,
-        8
-    )
-
-Dot.Position =
-    UDim2.fromOffset(
-        18,
-        443
-    )
-
-Dot.BackgroundColor3 =
-    Running and GREEN or RED
-
-Dot.BorderSizePixel =
-    0
-
-Dot.Parent =
-    Main
-
-local DotCorner =
-    Instance.new("UICorner")
-
-DotCorner.CornerRadius =
-    UDim.new(
-        1,
-        0
-    )
-
-DotCorner.Parent =
-    Dot
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 0)
+DotCorner.Parent = Dot
 
 --==================================================
 -- EVENT PANEL
 --==================================================
 
-local EventPanel =
-    Instance.new("Frame")
+local EventPanel = Instance.new("Frame")
+EventPanel.Size = UDim2.new(1, -30, 0, 138)
+EventPanel.Position = UDim2.fromOffset(15, 335)
+EventPanel.BackgroundColor3 = Color3.fromRGB(19, 22, 28)
+EventPanel.BorderSizePixel = 0
+EventPanel.Parent = Main
 
-EventPanel.Size =
-    UDim2.new(
-        1,
-        -30,
-        0,
-        138
-    )
-
-EventPanel.Position =
-    UDim2.fromOffset(
-        15,
-        335
-    )
-
-EventPanel.BackgroundColor3 =
-    Color3.fromRGB(
-        19,
-        22,
-        28
-    )
-
-EventPanel.BorderSizePixel =
-    0
-
-EventPanel.Parent =
-    Main
-
-local EventCorner =
-    Instance.new("UICorner")
-
-EventCorner.CornerRadius =
-    UDim.new(
-        0,
-        10
-    )
-
-EventCorner.Parent =
-    EventPanel
+local EventCorner = Instance.new("UICorner")
+EventCorner.CornerRadius = UDim.new(0, 10)
+EventCorner.Parent = EventPanel
 
 --==================================================
 -- ALL BUTTON
 --==================================================
 
-local AllButton =
-    Instance.new("TextButton")
+local AllButton = Instance.new("TextButton")
+AllButton.Size = UDim2.fromOffset(48, 24)
+AllButton.Position = UDim2.fromOffset(8, 7)
+AllButton.BackgroundColor3 = Color3.fromRGB(34, 38, 48)
+AllButton.BorderSizePixel = 0
+AllButton.Text = "ALL"
+AllButton.Font = Enum.Font.GothamBold
+AllButton.TextSize = 9
+AllButton.TextColor3 = Color3.fromRGB(220, 224, 232)
+AllButton.Parent = EventPanel
 
-AllButton.Size =
-    UDim2.fromOffset(
-        48,
-        24
-    )
-
-AllButton.Position =
-    UDim2.fromOffset(
-        8,
-        7
-    )
-
-AllButton.BackgroundColor3 =
-    Color3.fromRGB(
-        34,
-        38,
-        48
-    )
-
-AllButton.BorderSizePixel =
-    0
-
-AllButton.Text =
-    "ALL"
-
-AllButton.Font =
-    Enum.Font.GothamBold
-
-AllButton.TextSize =
-    9
-
-AllButton.TextColor3 =
-    Color3.fromRGB(
-        220,
-        224,
-        232
-    )
-
-AllButton.Parent =
-    EventPanel
-
-local AllCorner =
-    Instance.new("UICorner")
-
-AllCorner.CornerRadius =
-    UDim.new(
-        0,
-        7
-    )
-
-AllCorner.Parent =
-    AllButton
+local AllCorner = Instance.new("UICorner")
+AllCorner.CornerRadius = UDim.new(0, 7)
+AllCorner.Parent = AllButton
 
 --==================================================
 -- NONE BUTTON
 --==================================================
 
-local NoneButton =
-    Instance.new("TextButton")
+local NoneButton = Instance.new("TextButton")
+NoneButton.Size = UDim2.fromOffset(48, 24)
+NoneButton.Position = UDim2.fromOffset(62, 7)
+NoneButton.BackgroundColor3 = Color3.fromRGB(34, 38, 48)
+NoneButton.BorderSizePixel = 0
+NoneButton.Text = "NONE"
+NoneButton.Font = Enum.Font.GothamBold
+NoneButton.TextSize = 9
+NoneButton.TextColor3 = Color3.fromRGB(220, 224, 232)
+NoneButton.Parent = EventPanel
 
-NoneButton.Size =
-    UDim2.fromOffset(
-        48,
-        24
-    )
-
-NoneButton.Position =
-    UDim2.fromOffset(
-        62,
-        7
-    )
-
-NoneButton.BackgroundColor3 =
-    Color3.fromRGB(
-        34,
-        38,
-        48
-    )
-
-NoneButton.BorderSizePixel =
-    0
-
-NoneButton.Text =
-    "NONE"
-
-NoneButton.Font =
-    Enum.Font.GothamBold
-
-NoneButton.TextSize =
-    9
-
-NoneButton.TextColor3 =
-    Color3.fromRGB(
-        220,
-        224,
-        232
-    )
-
-NoneButton.Parent =
-    EventPanel
-
-local NoneCorner =
-    Instance.new("UICorner")
-
-NoneCorner.CornerRadius =
-    UDim.new(
-        0,
-        7
-    )
-
-NoneCorner.Parent =
-    EventPanel
+local NoneCorner = Instance.new("UICorner")
+NoneCorner.CornerRadius = UDim.new(0, 7)
+NoneCorner.Parent = EventPanel
 
 --==================================================
 -- EVENT SCROLL
 --==================================================
 
-local EventScroll =
-    Instance.new("ScrollingFrame")
+local EventScroll = Instance.new("ScrollingFrame")
+EventScroll.Size = UDim2.new(1, -16, 0, 95)
+EventScroll.Position = UDim2.fromOffset(8, 36)
+EventScroll.BackgroundTransparency = 1
+EventScroll.BorderSizePixel = 0
+EventScroll.ScrollBarThickness = 3
+EventScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+EventScroll.Parent = EventPanel
 
-EventScroll.Size =
-    UDim2.new(
-        1,
-        -16,
-        0,
-        95
-    )
-
-EventScroll.Position =
-    UDim2.fromOffset(
-        8,
-        36
-    )
-
-EventScroll.BackgroundTransparency =
-    1
-
-EventScroll.BorderSizePixel =
-    0
-
-EventScroll.ScrollBarThickness =
-    3
-
-EventScroll.CanvasSize =
-    UDim2.new(
-        0,
-        0,
-        0,
-        0
-    )
-
-EventScroll.Parent =
-    EventPanel
-
-local Layout =
-    Instance.new("UIListLayout")
-
-Layout.Padding =
-    UDim.new(
-        0,
-        4
-    )
-
-Layout.Parent =
-    EventScroll
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 4)
+Layout.Parent = EventScroll
 
 --==================================================
 -- EVENT BUTTONS
@@ -1125,176 +432,72 @@ Layout.Parent =
 local EventButtons = {}
 
 local function countSelected()
-
     local count = 0
-
     for _, eventName in ipairs(EVENTS) do
-
         if Selected[eventName] then
             count += 1
         end
     end
-
     return count
 end
 
 local function refreshButtons()
-
-    CountLabel.Text =
-        tostring(countSelected())
-        .. "/7"
+    CountLabel.Text = tostring(countSelected()) .. "/7"
 
     for eventName, button in pairs(EventButtons) do
-
         if Selected[eventName] then
-
-            button.BackgroundColor3 =
-                Color3.fromRGB(
-                    55,
-                    90,
-                    65
-                )
-
-            button.TextColor3 =
-                Color3.fromRGB(
-                    220,
-                    255,
-                    225
-                )
-
-            button.Text =
-                "✓  " .. eventName
-
+            button.BackgroundColor3 = Color3.fromRGB(55, 90, 65)
+            button.TextColor3 = Color3.fromRGB(220, 255, 225)
+            button.Text = "✓  " .. eventName
         else
-
-            button.BackgroundColor3 =
-                Color3.fromRGB(
-                    28,
-                    32,
-                    40
-                )
-
-            button.TextColor3 =
-                Color3.fromRGB(
-                    185,
-                    190,
-                    200
-                )
-
-            button.Text =
-                "○  " .. eventName
+            button.BackgroundColor3 = Color3.fromRGB(28, 32, 40)
+            button.TextColor3 = Color3.fromRGB(185, 190, 200)
+            button.Text = "○  " .. eventName
         end
     end
 end
 
 for _, eventName in ipairs(EVENTS) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -4, 0, 26)
+    button.BackgroundColor3 = Color3.fromRGB(28, 32, 40)
+    button.BorderSizePixel = 0
+    button.Text = Selected[eventName] and "✓  " .. eventName or "○  " .. eventName
+    button.Font = Enum.Font.GothamMedium
+    button.TextSize = 10
+    button.TextColor3 = Selected[eventName] and Color3.fromRGB(220, 255, 225) or Color3.fromRGB(185, 190, 200)
+    button.AutoButtonColor = false
+    button.Parent = EventScroll
 
-    local button =
-        Instance.new("TextButton")
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 7)
+    corner.Parent = button
 
-    button.Size =
-        UDim2.new(
-            1,
-            -4,
-            0,
-            26
-        )
-
-    button.BackgroundColor3 =
-        Color3.fromRGB(
-            28,
-            32,
-            40
-        )
-
-    button.BorderSizePixel =
-        0
-
-    button.Text =
-        Selected[eventName]
-        and "✓  " .. eventName
-        or "○  " .. eventName
-
-    button.Font =
-        Enum.Font.GothamMedium
-
-    button.TextSize =
-        10
-
-    button.TextColor3 =
-        Selected[eventName]
-        and Color3.fromRGB(
-            220,
-            255,
-            225
-        )
-        or Color3.fromRGB(
-            185,
-            190,
-            200
-        )
-
-    button.AutoButtonColor =
-        false
-
-    button.Parent =
-        EventScroll
-
-    local corner =
-        Instance.new("UICorner")
-
-    corner.CornerRadius =
-        UDim.new(
-            0,
-            7
-        )
-
-    corner.Parent =
-        button
-
-    EventButtons[eventName] =
-        button
+    EventButtons[eventName] = button
 
     button.MouseButton1Click:Connect(function()
-
-        Selected[eventName] =
-            not Selected[eventName]
-
+        Selected[eventName] = not Selected[eventName]
         refreshButtons()
         saveSettings()
-
     end)
 end
 
-Layout:GetPropertyChangedSignal(
-    "AbsoluteContentSize"
-):Connect(function()
-
-    EventScroll.CanvasSize =
-        UDim2.new(
-            0,
-            0,
-            0,
-            Layout.AbsoluteContentSize.Y + 5
-        )
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    EventScroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 5)
 end)
 
 AllButton.MouseButton1Click:Connect(function()
-
     for _, eventName in ipairs(EVENTS) do
         Selected[eventName] = true
     end
-
     refreshButtons()
     saveSettings()
 end)
 
 NoneButton.MouseButton1Click:Connect(function()
-
     for _, eventName in ipairs(EVENTS) do
         Selected[eventName] = false
     end
-
     refreshButtons()
     saveSettings()
 end)
@@ -1308,37 +511,16 @@ refreshButtons()
 local Expanded = true
 
 AutoHeader.MouseButton1Click:Connect(function()
-
-    Expanded =
-        not Expanded
+    Expanded = not Expanded
 
     if Expanded then
-
-        Arrow.Text =
-            ">"
-
-        EventPanel.Visible =
-            true
-
-        Main.Size =
-            UDim2.fromOffset(
-                350,
-                475
-            )
-
+        Arrow.Text = ">"
+        EventPanel.Visible = true
+        Main.Size = UDim2.fromOffset(350, 475)
     else
-
-        Arrow.Text =
-            "<"
-
-        EventPanel.Visible =
-            false
-
-        Main.Size =
-            UDim2.fromOffset(
-                350,
-                335
-            )
+        Arrow.Text = "<"
+        EventPanel.Visible = false
+        Main.Size = UDim2.fromOffset(350, 335)
     end
 end)
 
@@ -1347,81 +529,27 @@ end)
 --==================================================
 
 local function getNextWeatherRemote()
+    local Packages = ReplicatedStorage:FindFirstChild("Packages")
+    if not Packages then return nil end
 
-    local Packages =
-        ReplicatedStorage:FindFirstChild(
-            "Packages"
-        )
+    local Index = Packages:FindFirstChild("_Index")
+    if not Index then return nil end
 
-    if not Packages then
-        return nil
-    end
+    for _, child in ipairs(Index:GetChildren()) do
+        local childName = string.lower(child.Name)
+        local prefix = "sleitnick_knit"
 
-    local Index =
-        Packages:FindFirstChild(
-            "_Index"
-        )
-
-    if not Index then
-        return nil
-    end
-
-    for _, child in ipairs(
-        Index:GetChildren()
-    ) do
-
-        local childName =
-            string.lower(
-                child.Name
-            )
-
-        local prefix =
-            "sleitnick_knit"
-
-        if string.sub(
-            childName,
-            1,
-            #prefix
-        ) == prefix then
-
-            local knit =
-                child:FindFirstChild(
-                    "knit"
-                )
-
+        if string.sub(childName, 1, #prefix) == prefix then
+            local knit = child:FindFirstChild("knit")
             if knit then
-
-                local Services =
-                    knit:FindFirstChild(
-                        "Services"
-                    )
-
+                local Services = knit:FindFirstChild("Services")
                 if Services then
-
-                    local WeatherService =
-                        Services:FindFirstChild(
-                            "WeatherService"
-                        )
-
+                    local WeatherService = Services:FindFirstChild("WeatherService")
                     if WeatherService then
-
-                        local RF =
-                            WeatherService:FindFirstChild(
-                                "RF"
-                            )
-
+                        local RF = WeatherService:FindFirstChild("RF")
                         if RF then
-
-                            local Remote =
-                                RF:FindFirstChild(
-                                    "GetNextWeather"
-                                )
-
-                            if Remote
-                                and Remote:IsA(
-                                    "RemoteFunction"
-                                ) then
-
+                            local Remote = RF:FindFirstChild("GetNextWeather")
+                            if Remote and Remote:IsA("RemoteFunction") then
                                 return Remote
                             end
                         end
@@ -1439,43 +567,21 @@ end
 --==================================================
 
 local function getCurrentWeather()
-
-    local current =
-        ReplicatedStorage:FindFirstChild(
-            "CurrentWeather"
-        )
-
-    if not current then
-        return "Normal"
-    end
+    local current = ReplicatedStorage:FindFirstChild("CurrentWeather")
+    if not current then return "Normal" end
 
     local value = nil
-
     pcall(function()
-
         if current:IsA("ValueBase") then
             value = current.Value
         end
-
     end)
 
-    if value == nil then
-        return "Normal"
-    end
+    if value == nil then return "Normal" end
 
-    local weather =
-        tostring(value)
+    local weather = tostring(value):gsub("^%s+", ""):gsub("%s+$", "")
 
-    weather =
-        weather
-        :gsub("^%s+", "")
-        :gsub("%s+$", "")
-
-    if weather == ""
-        or weather:lower() == "nil"
-        or weather:lower() == "none"
-        or weather:lower() == "normal" then
-
+    if weather == "" or weather:lower() == "nil" or weather:lower() == "none" or weather:lower() == "normal" then
         return "Normal"
     end
 
@@ -1487,66 +593,33 @@ end
 --==================================================
 
 local function getNextWeather()
+    local remote = getNextWeatherRemote()
+    if not remote then return nil, nil end
 
-    local remote =
-        getNextWeatherRemote()
+    local success, result = pcall(function()
+        return remote:InvokeServer()
+    end)
 
-    if not remote then
+    if not success or type(result) ~= "table" then
         return nil, nil
     end
 
-    local success, result =
-        pcall(function()
-
-            return remote:InvokeServer()
-
-        end)
-
-    if not success then
-        return nil, nil
-    end
-
-    if type(result) ~= "table" then
-        return nil, nil
-    end
-
-    -- EXACT WORKING VALUES
-
-    local nextWeather =
-        result.key
-
-    local startTime =
-        result.startTime
+    local nextWeather = result.key
+    local startTime = result.startTime
 
     if nextWeather ~= nil then
-
-        nextWeather =
-            tostring(nextWeather)
+        nextWeather = tostring(nextWeather)
     end
 
     if startTime ~= nil then
-
-        local numericTime =
-            tonumber(startTime)
-
+        local numericTime = tonumber(startTime)
         if numericTime then
-
-            startTime =
-                os.date(
-                    "%H:%M:%S",
-                    numericTime
-                )
-
+            startTime = os.date("%H:%M:%S", numericTime)
         else
-
-            startTime =
-                tostring(startTime)
+            startTime = tostring(startTime)
         end
-
     else
-
-        startTime =
-            "--"
+        startTime = "--"
     end
 
     return nextWeather, startTime
@@ -1557,28 +630,13 @@ end
 --==================================================
 
 local function isSelectedWeather(weather)
+    if not weather then return false end
 
-    if not weather then
-        return false
-    end
-
-    local weatherNorm =
-        tostring(weather)
-        :lower()
-        :gsub("^%s+", "")
-        :gsub("%s+$", "")
+    local weatherNorm = tostring(weather):lower():gsub("^%s+", ""):gsub("%s+$", "")
 
     for _, eventName in ipairs(EVENTS) do
-
-        local eventNorm =
-            eventName
-            :lower()
-            :gsub("^%s+", "")
-            :gsub("%s+$", "")
-
-        if weatherNorm ==
-            eventNorm then
-
+        local eventNorm = eventName:lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if weatherNorm == eventNorm then
             return Selected[eventName] == true
         end
     end
@@ -1591,60 +649,28 @@ end
 --==================================================
 
 local function updateCurrentDisplay(current)
-
-    CurrentValue.Text =
-        current
-
-    -- NO EVENT ACTIVE
+    CurrentValue.Text = current
 
     if current == "Normal" then
-
-        CurrentValue.TextColor3 =
-            WHITE
-
+        CurrentValue.TextColor3 = WHITE
         if countSelected() > 0 then
-
-            CurrentResult.Text =
-                "WAS NOT FOUND BY CURRENT WEATHER"
-
-            CurrentResult.TextColor3 =
-                RED
-
+            CurrentResult.Text = "WAS NOT FOUND BY CURRENT WEATHER"
+            CurrentResult.TextColor3 = RED
         else
-
-            CurrentResult.Text =
-                "NO EVENT SELECTED"
-
-            CurrentResult.TextColor3 =
-                GREY
+            CurrentResult.Text = "NO EVENT SELECTED"
+            CurrentResult.TextColor3 = GREY
         end
-
         return
     end
 
-    -- SELECTED EVENT IS ACTIVE
-
     if isSelectedWeather(current) then
-
-        CurrentValue.TextColor3 =
-            GREEN
-
-        CurrentResult.Text =
-            "FOUND BY CURRENT WEATHER"
-
-        CurrentResult.TextColor3 =
-            GREEN
-
+        CurrentValue.TextColor3 = GREEN
+        CurrentResult.Text = "FOUND BY CURRENT WEATHER"
+        CurrentResult.TextColor3 = GREEN
     else
-
-        CurrentValue.TextColor3 =
-            RED
-
-        CurrentResult.Text =
-            "WAS NOT FOUND BY CURRENT WEATHER"
-
-        CurrentResult.TextColor3 =
-            RED
+        CurrentValue.TextColor3 = RED
+        CurrentResult.Text = "WAS NOT FOUND BY CURRENT WEATHER"
+        CurrentResult.TextColor3 = RED
     end
 end
 
@@ -1652,67 +678,30 @@ end
 -- UPDATE NEXT DISPLAY
 --==================================================
 
-local function updateNextDisplay(
-    nextWeather,
-    startTime
-)
-
+local function updateNextDisplay(nextWeather, startTime)
     if not nextWeather then
-
-        NextValue.Text =
-            "Lädt..."
-
-        NextValue.TextColor3 =
-            YELLOW
-
-        NextResult.Text =
-            "READING NEXT WEATHER..."
-
-        NextResult.TextColor3 =
-            YELLOW
-
-        NextStart.Text =
-            "Start: --"
-
+        NextValue.Text = "Lädt..."
+        NextValue.TextColor3 = YELLOW
+        NextResult.Text = "READING NEXT WEATHER..."
+        NextResult.TextColor3 = YELLOW
+        NextStart.Text = "Start: --"
         return
     end
 
-    LastNextWeather =
-        nextWeather
+    LastNextWeather = nextWeather
+    LastNextTime = startTime or "--"
 
-    LastNextTime =
-        startTime or "--"
+    NextValue.Text = LastNextWeather
+    NextStart.Text = "Start: " .. LastNextTime
 
-    NextValue.Text =
-        LastNextWeather
-
-    NextStart.Text =
-        "Start: "
-        .. LastNextTime
-
-    if isSelectedWeather(
-        nextWeather
-    ) then
-
-        NextValue.TextColor3 =
-            GREEN
-
-        NextResult.Text =
-            "FOUND BY NEXT WEATHER"
-
-        NextResult.TextColor3 =
-            GREEN
-
+    if isSelectedWeather(nextWeather) then
+        NextValue.TextColor3 = GREEN
+        NextResult.Text = "FOUND BY NEXT WEATHER"
+        NextResult.TextColor3 = GREEN
     else
-
-        NextValue.TextColor3 =
-            RED
-
-        NextResult.Text =
-            "WAS NOT FOUND BY NEXT WEATHER"
-
-        NextResult.TextColor3 =
-            RED
+        NextValue.TextColor3 = RED
+        NextResult.Text = "WAS NOT FOUND BY NEXT WEATHER"
+        NextResult.TextColor3 = RED
     end
 end
 
@@ -1721,108 +710,48 @@ end
 --==================================================
 
 local function serverHop()
-
-    if Hopping
-        or not Running then
-
-        return
-    end
-
-    -- SAVE BEFORE TELEPORT
+    if Hopping or not Running then return end
 
     saveSettings()
-
     Hopping = true
 
-    StatusText.Text =
-        "HOPPING..."
-
-    Dot.BackgroundColor3 =
-        YELLOW
+    StatusText.Text = "HOPPING..."
+    Dot.BackgroundColor3 = YELLOW
 
     task.spawn(function()
+        local success, data = pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. tostring(PlaceId) .. "/servers/Public?sortOrder=Asc&limit=100"
+            return HttpService:JSONDecode(game:HttpGet(url))
+        end)
 
-        local success, data =
-            pcall(function()
-
-                local url =
-                    "https://games.roblox.com/v1/games/"
-                    .. tostring(PlaceId)
-                    .. "/servers/Public?sortOrder=Asc&limit=100"
-
-                return HttpService:JSONDecode(
-                    game:HttpGet(url)
-                )
-            end)
-
-        if not success
-            or not data
-            or not data.data then
-
-            StatusText.Text =
-                "HOP FAILED"
-
-            Dot.BackgroundColor3 =
-                RED
-
+        if not success or not data or not data.data then
+            StatusText.Text = "HOP FAILED"
+            Dot.BackgroundColor3 = RED
             Hopping = false
-
             return
         end
 
         local servers = {}
-
-        for _, server in ipairs(
-            data.data
-        ) do
-
-            if server.id
-                and server.id ~= game.JobId
-                and server.playing
-                and server.maxPlayers
-                and server.playing <
-                    server.maxPlayers then
-
-                table.insert(
-                    servers,
-                    server.id
-                )
+        for _, server in ipairs(data.data) do
+            if server.id and server.id ~= game.JobId and server.playing and server.maxPlayers and server.playing < server.maxPlayers then
+                table.insert(servers, server.id)
             end
         end
 
         if #servers == 0 then
-
-            StatusText.Text =
-                "NO SERVER"
-
-            Dot.BackgroundColor3 =
-                RED
-
+            StatusText.Text = "NO SERVER"
+            Dot.BackgroundColor3 = RED
             Hopping = false
-
             return
         end
 
-        local target =
-            servers[
-                math.random(
-                    1,
-                    #servers
-                )
-            ]
+        local target = servers[math.random(1, #servers)]
 
         pcall(function()
-
-            TeleportService:
-                TeleportToPlaceInstance(
-                    PlaceId,
-                    target,
-                    LocalPlayer
-                )
+            TeleportService:TeleportToPlaceInstance(PlaceId, target, LocalPlayer)
         end)
 
         task.wait(6)
-
         Hopping = false
     end)
 end
@@ -1832,48 +761,24 @@ end
 --==================================================
 
 StartButton.MouseButton1Click:Connect(function()
-
     if not Running then
-
         if countSelected() == 0 then
-
-            StatusText.Text =
-                "SELECT EVENT"
-
-            Dot.BackgroundColor3 =
-                YELLOW
-
+            StatusText.Text = "SELECT EVENT"
+            Dot.BackgroundColor3 = YELLOW
             return
         end
 
         Running = true
-
-        StartButton.Text =
-            "STOP"
-
-        StatusText.Text =
-            "RUNNING"
-
-        Dot.BackgroundColor3 =
-            GREEN
-
+        StartButton.Text = "STOP"
+        StatusText.Text = "RUNNING"
+        Dot.BackgroundColor3 = GREEN
         saveSettings()
-
     else
-
         Running = false
-
         Hopping = false
-
-        StartButton.Text =
-            "START"
-
-        StatusText.Text =
-            "OFF"
-
-        Dot.BackgroundColor3 =
-            RED
-
+        StartButton.Text = "START"
+        StatusText.Text = "OFF"
+        Dot.BackgroundColor3 = RED
         saveSettings()
     end
 end)
@@ -1882,131 +787,41 @@ end)
 -- RIGHT SHIFT
 --==================================================
 
-UserInputService.InputBegan:Connect(
-    function(
-        input,
-        processed
-    )
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
 
-        if processed then
-            return
-        end
-
-        if input.KeyCode ==
-            Enum.KeyCode.RightShift then
-
-            Main.Visible =
-                not Main.Visible
-        end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        Main.Visible = not Main.Visible
     end
-)
+end)
 
 --==================================================
 -- MAIN LOOP
 --==================================================
 
 task.spawn(function()
-
     task.wait(2)
 
     while Gui.Parent do
+        local current = getCurrentWeather()
+        updateCurrentDisplay(current)
 
-        --==========================================
-        -- CURRENT WEATHER
-        --==========================================
-
-        local current =
-            getCurrentWeather()
-
-        updateCurrentDisplay(
-            current
-        )
-
-        --==========================================
-        -- EXACT NEXT WEATHER
-        --==========================================
-
-        local nextWeather,
-            startTime =
-            getNextWeather()
-
-        updateNextDisplay(
-            nextWeather,
-            startTime
-        )
-
-        --==========================================
-        -- AUTO FARM DECISION
-        --==========================================
+        local nextWeather, startTime = getNextWeather()
+        updateNextDisplay(nextWeather, startTime)
 
         if not Running then
-
-            StatusText.Text =
-                "OFF"
-
-            Dot.BackgroundColor3 =
-                RED
-
+            StatusText.Text = "OFF"
+            Dot.BackgroundColor3 = RED
         elseif countSelected() == 0 then
-
-            StatusText.Text =
-                "NO EVENT"
-
-            Dot.BackgroundColor3 =
-                YELLOW
-
-        elseif isSelectedWeather(
-            current
-        ) then
-
-            -- CURRENT TARGET
-            -- STAY HERE
-
-            StatusText.Text =
-                "CURRENT TARGET"
-
-            Dot.BackgroundColor3 =
-                GREEN
-
-        elseif nextWeather
-            and isSelectedWeather(
-                nextWeather
-            ) then
-
-            -- NEXT TARGET
-            -- STAY HERE
-
-            StatusText.Text =
-                "NEXT TARGET"
-
-            Dot.BackgroundColor3 =
-                GREEN
-
-        elseif nextWeather then
-
-            -- NEXT WEATHER IS KNOWN
-            -- BUT NOT SELECTED
-            -- SERVER HOP
-
-            StatusText.Text =
-                "HOPPING..."
-
-            Dot.BackgroundColor3 =
-                YELLOW
-
-            serverHop()
-
+            StatusText.Text = "NO EVENT"
+            Dot.BackgroundColor3 = YELLOW
+        elseif isSelectedWeather(current) or isSelectedWeather(nextWeather) then
+            StatusText.Text = "RUNNING"
+            Dot.BackgroundColor3 = GREEN
         else
-
-            -- WAIT FOR EXACT FORECAST
-
-            StatusText.Text =
-                "READING..."
-
-            Dot.BackgroundColor3 =
-                YELLOW
+            serverHop()
         end
 
-        task.wait(2)
+        task.wait(3)
     end
 end)
