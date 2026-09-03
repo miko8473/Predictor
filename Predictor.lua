@@ -1,754 +1,1328 @@
 -- ============================================================
--- SPIRIT FRUIT SMART GRINDER & AUTO-COLLECT (STABLE MAPPING)
--- REAL-TIME / MULTI-FRUIT / SAFE WEATHER MATCHING
+-- SPIRIT FRUIT SMART GRINDER
+-- ALL 4 FRUITS + AUTO COLLECT + WEATHER PREVIEW + AUTO-HOP
 -- ============================================================
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
 print("============================================================")
-print("[SmartGrinder] Gestartet mit stabilem Fruit-Mapping")
-print("[SmartGrinder] JobId:", game.JobId)
+print("[SmartGrinder] Gestartet!")
+print("[SmartGrinder] Alle 4 Früchte + Auto-Collect")
 print("============================================================")
 
+
 -- ============================================================
--- KONFIGURATION
+-- EINSTELLUNGEN
 -- ============================================================
+
+local AUTO_HOP = true
+local AUTO_COLLECT = true
+
+local WEATHER_UPDATE_TIME = 4
+local MAIN_UPDATE_TIME = 1.5
+local COLLECT_DELAY = 0.15
+
+
+-- ============================================================
+-- DIE 6 WETTER-MUTATIONEN
+-- ============================================================
+
 local WEATHER_ORDER = {
-    {weather = "Misty",         mutation = "Dewy"},
-    {weather = "Sandstorm",     mutation = "Dusty"},
-    {weather = "Blizzard",      mutation = "Frosted"},
-    {weather = "Acid-Rain",     mutation = "Radioactive"},
-    {weather = "Rainbow",       mutation = "Golden"},
-    {weather = "Meteor Shower", mutation = "Cosmic"}
+    {
+        weather = "Misty",
+        mutation = "Dewy"
+    },
+
+    {
+        weather = "Sandstorm",
+        mutation = "Dusty"
+    },
+
+    {
+        weather = "Blizzard",
+        mutation = "Frosted"
+    },
+
+    {
+        weather = "Acid-Rain",
+        mutation = "Radioactive"
+    },
+
+    {
+        weather = "Rainbow",
+        mutation = "Golden"
+    },
+
+    {
+        weather = "Meteor Shower",
+        mutation = "Cosmic"
+    }
 }
 
-local TARGET_COUNT = #WEATHER_ORDER
-local FRUIT_COUNT = 4
-local WEATHER_UPDATE_INTERVAL = 1.0
-local FRUIT_UPDATE_INTERVAL = 0.75
-local HOP_CONFIRM_DELAY = 1.5
-local TELEPORT_COOLDOWN = 5.0
 
 -- ============================================================
--- STATUS & PERSISTENTE DATEN
+-- STATUS
 -- ============================================================
-local autoHopEnabled = true
+
+local autoHopEnabled = AUTO_HOP
+local autoCollectEnabled = AUTO_COLLECT
+
 local teleporting = false
+local grindCompleted = false
 
-local cachedCurW = "Laden..."
-local cachedNextW = "Laden..."
-local weatherDataReady = false
-local weatherReadError = true
+local collectedFruits = {}
 
-local hopPending = false
-local hopPendingSince = 0
-local lastTeleportFail = 0
-
-local collectedInstances = {}
-
-local VISITED_FILE = "SmartGrinder_Visited.json"
-local visitedServers = {}
-
-pcall(function()
-    if isfile and readfile and isfile(VISITED_FILE) then
-        local data = HttpService:JSONDecode(readfile(VISITED_FILE))
-        if type(data) == "table" then
-            visitedServers = data
-        end
-    end
-end)
-
-visitedServers[game.JobId] = os.time()
-pcall(function()
-    if writefile then
-        writefile(VISITED_FILE, HttpService:JSONEncode(visitedServers))
-    end
-end)
 
 -- ============================================================
--- GUI AUFRÄUMEN & AUFBAU
+-- GUI AUFRÄUMEN
 -- ============================================================
+
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-local oldGui = playerGui:FindFirstChild("SpiritGrinderGUI")
-if oldGui then oldGui:Destroy() end
+
+if playerGui:FindFirstChild("SpiritGrinderGUI") then
+    playerGui.SpiritGrinderGUI:Destroy()
+end
+
+
+-- ============================================================
+-- GUI
+-- ============================================================
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SpiritGrinderGUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
+
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 400, 0, 435)
+
+mainFrame.Size = UDim2.new(0, 360, 0, 390)
 mainFrame.Position = UDim2.new(0, 25, 0, 80)
-mainFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
+
+mainFrame.BackgroundColor3 =
+    Color3.fromRGB(14, 14, 20)
+
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
+
 mainFrame.Parent = screenGui
 
+
 local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 12)
+
+mainCorner.CornerRadius =
+    UDim.new(0, 12)
+
 mainCorner.Parent = mainFrame
 
+
 local mainStroke = Instance.new("UIStroke")
-mainStroke.Color = Color3.fromRGB(45, 45, 65)
+
+mainStroke.Color =
+    Color3.fromRGB(45, 45, 65)
+
 mainStroke.Thickness = 1.5
+
 mainStroke.Parent = mainFrame
 
+
+-- ============================================================
+-- HEADER
+-- ============================================================
+
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0, 38)
-header.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+
+header.Size =
+    UDim2.new(1, 0, 0, 36)
+
+header.BackgroundColor3 =
+    Color3.fromRGB(22, 22, 32)
+
 header.BorderSizePixel = 0
+
 header.Parent = mainFrame
 
+
 local headerCorner = Instance.new("UICorner")
-headerCorner.CornerRadius = UDim.new(0, 12)
+
+headerCorner.CornerRadius =
+    UDim.new(0, 12)
+
 headerCorner.Parent = header
 
+
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -20, 1, 0)
-titleLabel.Position = UDim2.new(0, 12, 0, 0)
+
+titleLabel.Size =
+    UDim2.new(1, -16, 1, 0)
+
+titleLabel.Position =
+    UDim2.new(0, 12, 0, 0)
+
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🌱 SMART GRINDER <font color='#8888aa'>(Stable Map)</font>"
+
+titleLabel.Text =
+    "🌱 SMART GRINDER <font color='#8888aa'>(Auto-Collect)</font>"
+
 titleLabel.RichText = true
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+titleLabel.TextColor3 =
+    Color3.fromRGB(255, 255, 255)
+
 titleLabel.TextSize = 13
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+titleLabel.Font =
+    Enum.Font.GothamBold
+
+titleLabel.TextXAlignment =
+    Enum.TextXAlignment.Left
+
 titleLabel.Parent = header
 
+
+-- ============================================================
+-- CONTENT
+-- ============================================================
+
 local contentContainer = Instance.new("Frame")
-contentContainer.Size = UDim2.new(1, -20, 1, -48)
-contentContainer.Position = UDim2.new(0, 10, 0, 44)
+
+contentContainer.Size =
+    UDim2.new(1, -20, 1, -44)
+
+contentContainer.Position =
+    UDim2.new(0, 10, 0, 40)
+
 contentContainer.BackgroundTransparency = 1
+
 contentContainer.Parent = mainFrame
 
+
 local contentLayout = Instance.new("UIListLayout")
-contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-contentLayout.Padding = UDim.new(0, 4)
+
+contentLayout.SortOrder =
+    Enum.SortOrder.LayoutOrder
+
+contentLayout.Padding =
+    UDim.new(0, 4)
+
 contentLayout.Parent = contentContainer
 
+
 local function createRow(name, sizeY, textSize)
+
     local lbl = Instance.new("TextLabel")
+
     lbl.Name = name
-    lbl.Size = UDim2.new(1, 0, 0, sizeY or 20)
+
+    lbl.Size =
+        UDim2.new(1, 0, 0, sizeY or 20)
+
     lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
-    lbl.TextSize = textSize or 12
-    lbl.Font = Enum.Font.GothamMedium
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.TextYAlignment = Enum.TextYAlignment.Center
-    lbl.TextWrapped = true
-    lbl.Parent = contentContainer
+
+    lbl.TextColor3 =
+        Color3.fromRGB(210, 210, 220)
+
+    lbl.TextSize =
+        textSize or 12
+
+    lbl.Font =
+        Enum.Font.GothamMedium
+
+    lbl.TextXAlignment =
+        Enum.TextXAlignment.Left
+
+    lbl.Parent =
+        contentContainer
+
     return lbl
 end
 
-local lblWeather = createRow("LblWeather", 20, 12)
-local lblNextWeather = createRow("LblNextWeather", 20, 12)
+
+local lblWeather =
+    createRow("LblWeather", 20, 12)
+
+local lblNextWeather =
+    createRow("LblNextWeather", 20, 12)
+
 
 local div1 = Instance.new("Frame")
-div1.Size = UDim2.new(1, 0, 0, 1)
-div1.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-div1.BorderSizePixel = 0
-div1.Parent = contentContainer
 
-local fruitLabels = {}
-for i = 1, FRUIT_COUNT do
-    fruitLabels[i] = createRow("Fruit" .. i, 38, 11)
-end
+div1.Size =
+    UDim2.new(1, 0, 0, 1)
+
+div1.BackgroundColor3 =
+    Color3.fromRGB(40, 40, 60)
+
+div1.BorderSizePixel = 0
+
+div1.Parent =
+    contentContainer
+
+
+local fruitLabels = {
+
+    createRow("Fruit1", 20, 11),
+
+    createRow("Fruit2", 20, 11),
+
+    createRow("Fruit3", 20, 11),
+
+    createRow("Fruit4", 20, 11)
+}
+
 
 local div2 = Instance.new("Frame")
-div2.Size = UDim2.new(1, 0, 0, 1)
-div2.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+
+div2.Size =
+    UDim2.new(1, 0, 0, 1)
+
+div2.BackgroundColor3 =
+    Color3.fromRGB(40, 40, 60)
+
 div2.BorderSizePixel = 0
-div2.Parent = contentContainer
 
-local lblPhase = createRow("LblPhase", 22, 11)
-lblPhase.Font = Enum.Font.GothamBold
-lblPhase.TextColor3 = Color3.fromRGB(100, 200, 255)
+div2.Parent =
+    contentContainer
 
-local lblTarget = createRow("LblTarget", 24, 11)
-lblTarget.Font = Enum.Font.GothamBold
-lblTarget.TextColor3 = Color3.fromRGB(255, 190, 80)
 
-local lblNeeded = createRow("LblNeeded", 24, 11)
-lblNeeded.Font = Enum.Font.GothamBold
-lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
+local lblPhase =
+    createRow("LblPhase", 20, 11)
 
-local hopButton = Instance.new("TextButton")
-hopButton.Size = UDim2.new(1, 0, 0, 30)
-hopButton.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-hopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-hopButton.TextSize = 12
-hopButton.Font = Enum.Font.GothamBold
-hopButton.Text = "Auto-Hop: AN"
-hopButton.Parent = contentContainer
+lblPhase.Font =
+    Enum.Font.GothamBold
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 6)
-btnCorner.Parent = hopButton
+lblPhase.TextColor3 =
+    Color3.fromRGB(100, 200, 255)
 
-hopButton.MouseButton1Click:Connect(function()
-    autoHopEnabled = not autoHopEnabled
-    hopPending = false
-    teleporting = false
 
-    if autoHopEnabled then
-        hopButton.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-        hopButton.Text = "Auto-Hop: AN"
+local lblTarget =
+    createRow("LblTarget", 20, 11)
+
+lblTarget.Font =
+    Enum.Font.GothamBold
+
+lblTarget.TextColor3 =
+    Color3.fromRGB(255, 190, 80)
+
+
+local lblNeeded =
+    createRow("LblNeeded", 20, 11)
+
+lblNeeded.Font =
+    Enum.Font.GothamBold
+
+lblNeeded.TextColor3 =
+    Color3.fromRGB(80, 255, 120)
+
+
+-- ============================================================
+-- AUTO COLLECT BUTTON
+-- ============================================================
+
+local collectButton = Instance.new("TextButton")
+
+collectButton.Size =
+    UDim2.new(1, 0, 0, 28)
+
+collectButton.BackgroundColor3 =
+    Color3.fromRGB(40, 160, 80)
+
+collectButton.TextColor3 =
+    Color3.fromRGB(255, 255, 255)
+
+collectButton.TextSize = 12
+
+collectButton.Font =
+    Enum.Font.GothamBold
+
+collectButton.Text =
+    "Auto-Collect: AN"
+
+collectButton.Parent =
+    contentContainer
+
+
+local collectCorner =
+    Instance.new("UICorner")
+
+collectCorner.CornerRadius =
+    UDim.new(0, 6)
+
+collectCorner.Parent =
+    collectButton
+
+
+collectButton.MouseButton1Click:Connect(function()
+
+    autoCollectEnabled =
+        not autoCollectEnabled
+
+    if autoCollectEnabled then
+
+        collectButton.BackgroundColor3 =
+            Color3.fromRGB(40, 160, 80)
+
+        collectButton.Text =
+            "Auto-Collect: AN"
+
     else
-        hopButton.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
-        hopButton.Text = "Auto-Hop: AUS (Manuell)"
+
+        collectButton.BackgroundColor3 =
+            Color3.fromRGB(160, 40, 40)
+
+        collectButton.Text =
+            "Auto-Collect: AUS"
     end
 end)
 
-local function resetUIState(phaseText, targetText, neededText)
-    lblPhase.Text = phaseText
-    lblTarget.Text = targetText
-    lblNeeded.Text = neededText
-    for i = 1, FRUIT_COUNT do
-        fruitLabels[i].Text = string.format("Frucht %d: Warten...", i)
-        fruitLabels[i].TextColor3 = Color3.fromRGB(120, 120, 140)
+
+-- ============================================================
+-- AUTO HOP BUTTON
+-- ============================================================
+
+local hopButton = Instance.new("TextButton")
+
+hopButton.Size =
+    UDim2.new(1, 0, 0, 28)
+
+hopButton.BackgroundColor3 =
+    Color3.fromRGB(40, 160, 80)
+
+hopButton.TextColor3 =
+    Color3.fromRGB(255, 255, 255)
+
+hopButton.TextSize = 12
+
+hopButton.Font =
+    Enum.Font.GothamBold
+
+hopButton.Text =
+    "Auto-Hop: AN"
+
+hopButton.Parent =
+    contentContainer
+
+
+local hopCorner =
+    Instance.new("UICorner")
+
+hopCorner.CornerRadius =
+    UDim.new(0, 6)
+
+hopCorner.Parent =
+    hopButton
+
+
+hopButton.MouseButton1Click:Connect(function()
+
+    if grindCompleted then
+        return
     end
-end
+
+    autoHopEnabled =
+        not autoHopEnabled
+
+    teleporting = false
+
+    if autoHopEnabled then
+
+        hopButton.BackgroundColor3 =
+            Color3.fromRGB(40, 160, 80)
+
+        hopButton.Text =
+            "Auto-Hop: AN"
+
+    else
+
+        hopButton.BackgroundColor3 =
+            Color3.fromRGB(160, 40, 40)
+
+        hopButton.Text =
+            "Auto-Hop: AUS"
+    end
+end)
+
 
 -- ============================================================
--- HILFSFUNKTIONEN
+-- STRING BEREINIGEN
 -- ============================================================
+
 local function cleanString(str)
-    if str == nil then return "" end
-    return tostring(str):lower():gsub("[%s_%-]+", "")
+
+    if not str then
+        return ""
+    end
+
+    return tostring(str)
+        :gsub("%s+", "")
+        :lower()
 end
 
-local function normalizeMutation(str)
-    if str == nil then return "" end
-    return tostring(str):lower():gsub("[%s_%-]+", "")
-end
 
-local function isValidWeather(weather)
-    if weather == nil then return false end
-    local value = tostring(weather)
-    if value == "" or cleanString(value) == "unknown" or cleanString(value) == "laden" then return false end
-    return true
-end
+-- ============================================================
+-- AKTUELLES WETTER
+-- ============================================================
 
 local function getActiveWeather()
-    local currentWeatherObj = ReplicatedStorage:FindFirstChild("CurrentWeather") or ReplicatedStorage:FindFirstChild("CurrentWeather", true)
+
+    local currentWeatherObj =
+        ReplicatedStorage:FindFirstChild("CurrentWeather")
+        or ReplicatedStorage:FindFirstChild("CurrentWeather", true)
+
     if currentWeatherObj then
-        local value = nil
-        if currentWeatherObj:IsA("ValueBase") then value = currentWeatherObj.Value
-        elseif currentWeatherObj:IsA("TextLabel") or currentWeatherObj:IsA("TextBox") then value = currentWeatherObj.Text end
-        if value == nil or tostring(value) == "" then
-            value = currentWeatherObj:GetAttribute("Value") or currentWeatherObj:GetAttribute("Weather") or currentWeatherObj:GetAttribute("CurrentWeather")
+
+        local val = nil
+
+        if currentWeatherObj:IsA("ValueBase") then
+
+            val =
+                currentWeatherObj.Value
+
+        elseif currentWeatherObj:IsA("TextLabel")
+            or currentWeatherObj:IsA("TextBox") then
+
+            val =
+                currentWeatherObj.Text
         end
-        if value ~= nil and tostring(value) ~= "" then return tostring(value) end
+
+
+        if not val or val == "" then
+
+            val =
+                currentWeatherObj:GetAttribute("Value")
+                or currentWeatherObj:GetAttribute("Weather")
+                or currentWeatherObj:GetAttribute("CurrentWeather")
+        end
+
+
+        if val and tostring(val) ~= "" then
+
+            return tostring(val)
+        end
     end
-    local attrWeather = ReplicatedStorage:GetAttribute("CurrentWeather")
-    if attrWeather ~= nil and tostring(attrWeather) ~= "" then return tostring(attrWeather) end
+
+
+    local attrWeather =
+        ReplicatedStorage:GetAttribute(
+            "CurrentWeather"
+        )
+
+
+    if attrWeather then
+
+        return tostring(attrWeather)
+    end
+
+
     return "Unknown"
 end
 
+
+-- ============================================================
+-- NÄCHSTES WETTER
+-- ============================================================
+
 local function getNextWeather()
-    for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
-        if desc.Name == "GetNextWeather" and desc:IsA("RemoteFunction") then
-            local success, result = pcall(function() return desc:InvokeServer() end)
-            if success then
-                if type(result) == "table" then return tostring(result.key or result.Name or result.weather or result.Weather or "Unknown")
-                elseif type(result) == "string" then return result end
+
+    for _, desc in ipairs(
+        ReplicatedStorage:GetDescendants()
+    ) do
+
+        if desc.Name == "GetNextWeather"
+            and desc:IsA("RemoteFunction") then
+
+            local success, res =
+                pcall(function()
+
+                    return desc:InvokeServer()
+                end)
+
+
+            if success and type(res) == "table" then
+
+                return res.key
+                    or res.Name
+                    or "Unknown"
+
+            elseif success
+                and type(res) == "string" then
+
+                return res
             end
         end
     end
+
+
     return "Unknown"
 end
 
+
+-- ============================================================
+-- SPIRIT TREE FINDEN
+-- ============================================================
+
 local function getPlayerSpiritTree()
-    local bigField = Workspace:FindFirstChild("BigField")
-    if not bigField then return nil end
-    local playerPlots = bigField:FindFirstChild("PlayerPlots")
-    if not playerPlots then return nil end
+
+    local bigField =
+        Workspace:FindFirstChild("BigField")
+
+    if not bigField then
+        return nil
+    end
+
+
+    local playerPlots =
+        bigField:FindFirstChild("PlayerPlots")
+
+    if not playerPlots then
+        return nil
+    end
+
 
     local myPlot = nil
-    for _, plot in ipairs(playerPlots:GetChildren()) do
-        if tonumber(plot:GetAttribute("OwnerUserId")) == LocalPlayer.UserId then
+
+
+    for _, plot in ipairs(
+        playerPlots:GetChildren()
+    ) do
+
+        if tonumber(
+            plot:GetAttribute("OwnerUserId")
+        ) == LocalPlayer.UserId then
+
             myPlot = plot
             break
         end
     end
-    if not myPlot then return nil end
 
-    for _, child in ipairs(myPlot:GetChildren()) do
-        local seedType = child:GetAttribute("SeedType") or child:GetAttribute("Type") or child:GetAttribute("PlantType")
-        if seedType and tostring(seedType):lower() == "spirit" then return child end
+
+    if not myPlot then
+        return nil
     end
-    for _, child in ipairs(myPlot:GetDescendants()) do
-        local seedType = child:GetAttribute("SeedType") or child:GetAttribute("Type") or child:GetAttribute("PlantType")
-        if seedType and tostring(seedType):lower() == "spirit" then return child end
+
+
+    for _, child in ipairs(
+        myPlot:GetChildren()
+    ) do
+
+        if child:GetAttribute("SeedType")
+            == "Spirit" then
+
+            return child
+        end
     end
+
+
     return nil
 end
 
-local function getFruitMap(fruitSpawnsFolder)
-    local fruitMap = {}
-    local children = fruitSpawnsFolder:GetChildren()
 
-    -- 1. Versuch: Über Attribute (SpawnIndex / Index / ID)
-    for _, obj in ipairs(children) do
-        local rawIndex = obj:GetAttribute("SpawnIndex") or obj:GetAttribute("Index") or obj:GetAttribute("ID")
-        local idx = tonumber(rawIndex)
-        if idx and idx >= 1 and idx <= FRUIT_COUNT and idx % 1 == 0 and fruitMap[idx] == nil then
+-- ============================================================
+-- FRUIT SPAWNS FINDEN
+-- ============================================================
+
+local function getFruitSpawns()
+
+    local spiritTree =
+        getPlayerSpiritTree()
+
+    if not spiritTree then
+        return nil
+    end
+
+
+    local fruitSpawnsFolder =
+        spiritTree:FindFirstChild("FruitSpawns")
+
+    if not fruitSpawnsFolder then
+        return nil
+    end
+
+
+    local fruitMap = {}
+
+
+    for _, obj in ipairs(
+        fruitSpawnsFolder:GetChildren()
+    ) do
+
+        local idx =
+            obj:GetAttribute("SpawnIndex")
+
+
+        if typeof(idx) == "number"
+            and idx >= 1
+            and idx <= 4
+            and idx % 1 == 0 then
+
             fruitMap[idx] = obj
         end
     end
 
-    -- 2. Versuch: Über im Namen enthaltene Nummern (z. B. "Fruit1", "2")
-    local missingAny = false
-    for i = 1, FRUIT_COUNT do
-        if fruitMap[i] == nil then missingAny = true break end
-    end
 
-    if missingAny then
-        for _, obj in ipairs(children) do
-            local numStr = obj.Name:match("(%d+)")
-            if numStr then
-                local idx = tonumber(numStr)
-                if idx and idx >= 1 and idx <= FRUIT_COUNT and fruitMap[idx] == nil then
-                    fruitMap[idx] = obj
-                end
-            end
-        end
-    end
-
-    -- 3. Fallback mit stabiler alphabetischer Sortierung (verhindert Chaos durch rohes GetChildren)
-    missingAny = false
-    for i = 1, FRUIT_COUNT do
-        if fruitMap[i] == nil then missingAny = true break end
-    end
-
-    if missingAny and #children >= FRUIT_COUNT then
-        local sortedChildren = {}
-        for _, child in ipairs(children) do
-            table.insert(sortedChildren, child)
-        end
-        table.sort(sortedChildren, function(a, b)
-            return a.Name < b.Name
-        end)
-
-        local childIdx = 1
-        for i = 1, FRUIT_COUNT do
-            if fruitMap[i] == nil then
-                while sortedChildren[childIdx] do
-                    local alreadyAssigned = false
-                    for _, assignedObj in pairs(fruitMap) do
-                        if assignedObj == sortedChildren[childIdx] then
-                            alreadyAssigned = true
-                            break
-                        end
-                    end
-                    if not alreadyAssigned then
-                        fruitMap[i] = sortedChildren[childIdx]
-                        childIdx += 1
-                        break
-                    end
-                    childIdx += 1
-                end
-            end
-        end
-    end
-
-    for i = 1, FRUIT_COUNT do
-        if fruitMap[i] == nil then return nil end
-    end
     return fruitMap
 end
 
-local function getMutationData(spawnObj)
-    if not spawnObj then return {count = 0, found = {}, missing = WEATHER_ORDER, raw = nil} end
-    local raw = spawnObj:GetAttribute("FruitMutations") or spawnObj:GetAttribute("Mutations") or spawnObj:GetAttribute("MutationList")
-    local foundMap = {}
-    if typeof(raw) == "string" then
-        for part in string.gmatch(raw, "[^,]+") do
-            local mutation = normalizeMutation(part)
-            if mutation ~= "" then foundMap[mutation] = true end
+
+-- ============================================================
+-- AUTO COLLECT
+-- ============================================================
+
+local function collectFruit(spawnObj, fruitIndex)
+
+    if not autoCollectEnabled then
+        return false
+    end
+
+    if not spawnObj then
+        return false
+    end
+
+
+    -- Verhindert mehrfaches Einsammeln
+    -- derselben bereits gefundenen Frucht.
+    if collectedFruits[spawnObj] then
+        return false
+    end
+
+
+    local collected = false
+
+
+    -- ========================================================
+    -- CLICK DETECTOR
+    -- ========================================================
+
+    local clickDetector =
+        spawnObj:FindFirstChildOfClass(
+            "ClickDetector"
+        )
+
+
+    if clickDetector then
+
+        local success =
+            pcall(function()
+
+                fireclickdetector(
+                    clickDetector
+                )
+            end)
+
+
+        if success then
+
+            collected = true
+
+            print(
+                "[AutoCollector] 🍎 Frucht",
+                fruitIndex,
+                "per ClickDetector eingesammelt!"
+            )
         end
     end
 
-    local count = 0
-    local found = {}
-    local missing = {}
-    for _, entry in ipairs(WEATHER_ORDER) do
-        if foundMap[normalizeMutation(entry.mutation)] then
-            count += 1
-            table.insert(found, entry.mutation)
-        else
-            table.insert(missing, entry)
-        end
-    end
-    return {count = count, found = found, missing = missing, raw = raw}
-end
 
--- ============================================================
--- SICHERE AUTO-COLLECT FUNKTION
--- ============================================================
-local function collectFruit(spawnObj)
-    if not spawnObj then return false end
-    
-    local triggered = false
-    pcall(function()
-        local prompt = spawnObj:FindFirstChildOfClass("ProximityPrompt") or spawnObj:FindFirstChild("ProximityPrompt", true)
+    -- ========================================================
+    -- PROXIMITY PROMPT
+    -- ========================================================
+
+    if not collected then
+
+        local prompt =
+            spawnObj:FindFirstChildOfClass(
+                "ProximityPrompt"
+            )
+
+
         if prompt then
-            fireproximityprompt(prompt)
-            triggered = true
-            print("[SmartGrinder] 🍇 Frucht automatisch eingesammelt via ProximityPrompt!")
-            return
-        end
 
-        local clickDetector = spawnObj:FindFirstChildOfClass("ClickDetector") or spawnObj:FindFirstChild("ClickDetector", true)
-        if clickDetector then
-            fireclickdetector(clickDetector)
-            triggered = true
-            print("[SmartGrinder] 🍇 Frucht automatisch eingesammelt via ClickDetector!")
-            return
-        end
-    end)
-    return triggered
-end
+            local success =
+                pcall(function()
 
-local function getWeatherMatches(allMissingWeathers, weather)
-    local matches = {}
-    local weatherClean = cleanString(weather)
-    if weatherClean == "" then return matches end
-    for _, req in ipairs(allMissingWeathers) do
-        if cleanString(req.weather) == weatherClean then table.insert(matches, req) end
-    end
-    return matches
-end
+                    fireproximityprompt(
+                        prompt
+                    )
+                end)
 
-local function displayMatches(prefix, matches)
-    local fruitNumbers = {}
-    local mutationNames = {}
-    local seenFruits = {}
-    local seenMutations = {}
-    for _, match in ipairs(matches) do
-        if not seenFruits[match.fruitIdx] then
-            seenFruits[match.fruitIdx] = true
-            table.insert(fruitNumbers, "F" .. tostring(match.fruitIdx))
-        end
-        if not seenMutations[match.mutation] then
-            seenMutations[match.mutation] = true
-            table.insert(mutationNames, match.mutation)
-        end
-    end
-    lblTarget.Text = string.format("%s: %s → %s", prefix, table.concat(fruitNumbers, ", "), table.concat(mutationNames, ", "))
-end
 
--- ============================================================
--- OPTIMIERTER SERVER HOP
--- ============================================================
-local function triggerServerHop()
-    if not autoHopEnabled or teleporting then return end
-    
-    if os.clock() - lastTeleportFail < TELEPORT_COOLDOWN then
-        lblNeeded.Text = "⏳ Teleport-Cooldown aktiv..."
-        return
-    end
+            if success then
 
-    teleporting = true
-    hopPending = false
+                collected = true
 
-    print("============================================================")
-    print("[SmartGrinder] 🔄 Suche idealen Server (Low Pop & Unbesucht)")
-    print("[SmartGrinder] Aktuelle JobId:", game.JobId)
-    print("============================================================")
-
-    hopButton.Text = "Auto-Hop: Suche Server..."
-
-    local success, err = pcall(function()
-        local placeId = tostring(game.PlaceId)
-        local cursor = nil
-        local selectedServer = nil
-        math.randomseed(os.time())
-
-        for page = 1, 5 do
-            local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-            if cursor then url = url .. "&cursor=" .. HttpService:UrlEncode(cursor) end
-
-            local response = game:HttpGet(url)
-            if not response or response == "" then error("Leere Server-API-Antwort") end
-
-            local data = HttpService:JSONDecode(response)
-            if type(data) ~= "table" or type(data.data) ~= "table" then error("Ungültige Server-API-Antwort") end
-
-            local validServersInPage = {}
-
-            for _, server in ipairs(data.data) do
-                if type(server) == "table" then
-                    local serverId = server.id
-                    local playing = tonumber(server.playing)
-                    local maxPlayers = tonumber(server.maxPlayers)
-
-                    if serverId and serverId ~= game.JobId and not visitedServers[serverId] and playing and maxPlayers then
-                        if playing < (maxPlayers - 1) and playing > 0 then
-                            table.insert(validServersInPage, server)
-                        end
-                    end
-                end
+                print(
+                    "[AutoCollector] 🍎 Frucht",
+                    fruitIndex,
+                    "per ProximityPrompt eingesammelt!"
+                )
             end
-
-            if #validServersInPage > 0 then
-                selectedServer = validServersInPage[math.random(1, #validServersInPage)]
-                break
-            end
-
-            cursor = data.nextPageCursor
-            if not cursor then break end
-            task.wait(0.2)
         end
-
-        if not selectedServer then
-            print("[SmartGrinder] ⚠️ Kein neuer, freier Server gefunden.")
-            teleporting = false
-            if autoHopEnabled then hopButton.Text = "Auto-Hop: AN" end
-            return
-        end
-
-        print("[SmartGrinder] ✅ Server gewählt:", selectedServer.id)
-        hopButton.Text = "Auto-Hop: Teleportiere..."
-        
-        visitedServers[selectedServer.id] = os.time()
-        pcall(function()
-            if writefile then writefile(VISITED_FILE, HttpService:JSONEncode(visitedServers)) end
-        end)
-
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, selectedServer.id, LocalPlayer)
-    end)
-
-    if not success then
-        teleporting = false
-        lastTeleportFail = os.clock()
-        warn("[SmartGrinder] ❌ Server-Hop Fehler:", err)
-        if autoHopEnabled then hopButton.Text = "Auto-Hop: AN" end
     end
+
+
+    if collected then
+
+        collectedFruits[spawnObj] = true
+
+        task.wait(COLLECT_DELAY)
+
+        return true
+    end
+
+
+    return false
 end
 
+
 -- ============================================================
--- WETTER-SYNC THREAD
+-- WETTER-CACHE
 -- ============================================================
+
+local cachedCurW =
+    "Laden..."
+
+local cachedNextW =
+    "Laden..."
+
+
 task.spawn(function()
+
     while screenGui.Parent do
-        local success, err = pcall(function()
-            local current = getActiveWeather()
-            local nextWeather = getNextWeather()
 
-            cachedCurW = current
-            cachedNextW = nextWeather
+        cachedCurW =
+            getActiveWeather()
 
-            local currentValid = isValidWeather(current)
-            local nextValid = isValidWeather(nextWeather)
+        cachedNextW =
+            getNextWeather()
 
-            weatherReadError = not currentValid or not nextValid
-            weatherDataReady = true
-        end)
-
-        if not success then
-            weatherReadError = true
-            warn("[SmartGrinder] Wetter-Sync Fehler:", err)
-        end
-        task.wait(WEATHER_UPDATE_INTERVAL)
+        task.wait(
+            WEATHER_UPDATE_TIME
+        )
     end
 end)
+
 
 -- ============================================================
 -- HAUPTLOGIK
 -- ============================================================
+
 task.spawn(function()
+
     while screenGui.Parent do
-        local success, err = pcall(function()
 
-            lblWeather.Text = "Aktuell: " .. tostring(cachedCurW)
-            lblNextWeather.Text = "Nächstes: " .. tostring(cachedNextW)
+        local ok, err =
+            pcall(function()
 
-            if not weatherDataReady then
-                hopPending = false
-                resetUIState("Phase: Wetter-Sync...", "Ziel: Warte auf Wetterdaten", "Kein Hop während Sync")
-                return
-            end
+                lblWeather.Text =
+                    "Aktuell: "
+                    .. cachedCurW
 
-            if weatherReadError then
-                hopPending = false
-                resetUIState("Phase: Wetter-Sync Fehler", "Ziel: Keine sichere Entscheidung", "Hop pausiert...")
-                return
-            end
+                lblNextWeather.Text =
+                    "Nächstes: "
+                    .. cachedNextW
 
-            local spiritTree = getPlayerSpiritTree()
-            if not spiritTree then
-                hopPending = false
-                resetUIState("Phase: Kein Spirit-Baum", "Ziel: Spirit-Baum nicht gefunden", "Hop pausiert...")
-                return
-            end
 
-            local fruitSpawnsFolder = spiritTree:FindFirstChild("FruitSpawns") or spiritTree:FindFirstChild("Fruits") or spiritTree:FindFirstChild("Spawns")
-            if not fruitSpawnsFolder then
-                hopPending = false
-                resetUIState("Phase: FruitSpawns Ordner fehlt", "Ziel: Warte auf Spawns-Ordner", "Hop pausiert...")
-                return
-            end
+                local fruitMap =
+                    getFruitSpawns()
 
-            local fruitMap = getFruitMap(fruitSpawnsFolder)
-            if not fruitMap then
-                hopPending = false
-                resetUIState("Phase: Früchte werden geladen", "Ziel: Warte auf Früchte 1-4", "Hop pausiert...")
-                return
-            end
 
-            for spawnObj, _ in pairs(collectedInstances) do
-                if not spawnObj or not spawnObj.Parent then
-                    collectedInstances[spawnObj] = nil
-                end
-            end
+                if not fruitMap then
 
-            local allMissingWeathers = {}
+                    resetUIState(
+                        "Phase: Fehler",
+                        "Ziel: Kein Spirit-Baum",
+                        "Warte..."
+                    )
 
-            for i = 1, FRUIT_COUNT do
-                local spawnObj = fruitMap[i]
-                local data = getMutationData(spawnObj)
-
-                if data.count >= TARGET_COUNT then
-                    fruitLabels[i].Text = string.format("Frucht %d: %d/%d | Komplett ✅", i, data.count, TARGET_COUNT)
-                    fruitLabels[i].TextColor3 = Color3.fromRGB(100, 255, 100)
-
-                    if spawnObj then
-                        local triggerTime = collectedInstances[spawnObj]
-                        if not triggerTime then
-                            if collectFruit(spawnObj) then
-                                collectedInstances[spawnObj] = os.clock()
-                            end
-                        else
-                            if (os.clock() - triggerTime > 4.0) and spawnObj.Parent then
-                                collectedInstances[spawnObj] = nil
-                            end
-                        end
-                    end
-                else
-                    local missingNames = {}
-                    for _, entry in ipairs(data.missing) do
-                        table.insert(missingNames, entry.mutation)
-                        table.insert(allMissingWeathers, {
-                            fruitIdx = i,
-                            weather = entry.weather,
-                            mutation = entry.mutation
-                        })
-                    end
-                    fruitLabels[i].Text = string.format("Frucht %d: %d/%d | Fehlt: %s", i, data.count, TARGET_COUNT, table.concat(missingNames, ", "))
-                    fruitLabels[i].TextColor3 = Color3.fromRGB(255, 170, 80)
-                end
-            end
-
-            if #allMissingWeathers == 0 then
-                hopPending = false
-                lblPhase.Text = "Status: Alle Früchte komplett/geerntet"
-                lblTarget.Text = "Ziel: Warte auf neue Fruit-Spawns"
-                lblNeeded.Text = "🟢 Kein Hop erforderlich."
-                lblNeeded.TextColor3 = Color3.fromRGB(100, 255, 100)
-                return
-            end
-
-            local currentMatches = getWeatherMatches(allMissingWeathers, cachedCurW)
-            local nextMatches = getWeatherMatches(allMissingWeathers, cachedNextW)
-
-            if #currentMatches > 0 then
-                hopPending = false
-                displayMatches("Jetzt", currentMatches)
-                lblPhase.Text = string.format("Status: %d aktuelle Treffer", #currentMatches)
-                lblNeeded.Text = "🟢 Wetter passt! Server behalten."
-                lblNeeded.TextColor3 = Color3.fromRGB(80, 255, 120)
-
-            elseif #nextMatches > 0 then
-                hopPending = false
-                displayMatches("Bald", nextMatches)
-                lblPhase.Text = string.format("Status: %d Treffer im nächsten Wetter", #nextMatches)
-                lblNeeded.Text = "🟡 Nächstes Wetter passt! Server behalten."
-                lblNeeded.TextColor3 = Color3.fromRGB(255, 220, 80)
-
-            else
-                if #allMissingWeathers > 0 then
-                    local firstReq = allMissingWeathers[1]
-                    lblTarget.Text = string.format("Offen: F%d → %s (%s)", firstReq.fruitIdx, firstReq.weather, firstReq.mutation)
-                else
-                    lblTarget.Text = "Ziel: Keine offenen Mutationen"
+                    return
                 end
 
-                lblPhase.Text = "Status: Kein Treffer für aktuelle/nächste Runde"
-                lblNeeded.Text = "🔴 Kein benötigtes Wetter → Hop-Kandidat"
-                lblNeeded.TextColor3 = Color3.fromRGB(220, 100, 100)
 
-                if autoHopEnabled then
-                    if not hopPending then
-                        hopPending = true
-                        hopPendingSince = os.clock()
-                        lblPhase.Text = "Status: Hop wird bestätigt..."
+                -- ====================================================
+                -- ALLE FRÜCHTE ANALYSIEREN
+                -- ====================================================
+
+                local fruitDataList = {}
+
+                local allNeededWeathers = {}
+
+                local allWeatherComplete =
+                    true
+
+
+                for i = 1, 4 do
+
+                    local spawnObj =
+                        fruitMap[i]
+
+
+                    if not spawnObj then
+
+                        fruitDataList[i] = {
+                            count = 0,
+                            missing = {}
+                        }
+
+                        allWeatherComplete =
+                            false
+
                     else
-                        local elapsed = os.clock() - hopPendingSince
-                        if elapsed >= HOP_CONFIRM_DELAY then
-                            
-                            local verifyTree = getPlayerSpiritTree()
-                            local verifyFolder = verifyTree and (verifyTree:FindFirstChild("FruitSpawns") or verifyTree:FindFirstChild("Fruits") or verifyTree:FindFirstChild("Spawns"))
-                            local verifyMap = verifyFolder and getFruitMap(verifyFolder)
-                            
-                            local verifyMissingWeathers = {}
 
-                            if verifyMap then
-                                for i = 1, FRUIT_COUNT do
-                                    local vData = getMutationData(verifyMap[i])
-                                    if vData.count < TARGET_COUNT then
-                                        for _, entry in ipairs(vData.missing) do
-                                            table.insert(verifyMissingWeathers, {
-                                                fruitIdx = i,
-                                                weather = entry.weather,
-                                                mutation = entry.mutation
-                                            })
-                                        end
-                                    end
-                                end
+                        local mutationsAttr =
+                            spawnObj:GetAttribute(
+                                "FruitMutations"
+                            )
+                            or ""
+
+
+                        local foundMap = {}
+
+
+                        for mut in mutationsAttr:gmatch(
+                            "[^,%s]+"
+                        ) do
+
+                            foundMap[
+                                mut:lower()
+                            ] = true
+                        end
+
+
+                        local weatherCount = 0
+
+                        local missingList = {}
+
+
+                        for _, entry in ipairs(
+                            WEATHER_ORDER
+                        ) do
+
+                            local mutationName =
+                                entry.mutation:lower()
+
+
+                            if foundMap[
+                                mutationName
+                            ] then
+
+                                weatherCount =
+                                    weatherCount + 1
+
                             else
-                                verifyMissingWeathers = allMissingWeathers
+
+                                table.insert(
+                                    missingList,
+                                    entry
+                                )
+
+
+                                -- Global speichern:
+                                -- egal welche Frucht es braucht.
+                                if not allNeededWeathers[
+                                    mutationName
+                                ] then
+
+                                    allNeededWeathers[
+                                        mutationName
+                                    ] = {
+
+                                        weather =
+                                            entry.weather,
+
+                                        mutation =
+                                            entry.mutation,
+
+                                        fruits = {}
+                                    }
+                                end
+
+
+                                table.insert(
+                                    allNeededWeathers[
+                                        mutationName
+                                    ].fruits,
+                                    i
+                                )
                             end
+                        end
 
-                            local verifyCurrent = getActiveWeather()
-                            local verifyNext = getNextWeather()
 
-                            if #verifyMissingWeathers == 0 then
-                                hopPending = false
-                                lblNeeded.Text = "🟢 Alle Früchte inzwischen komplett/geerntet!"
-                            elseif not isValidWeather(verifyCurrent) or not isValidWeather(verifyNext) then
-                                hopPending = false
-                                lblNeeded.Text = "🟡 Wetterprüfung unsicher → Hop abgebrochen"
-                            else
-                                local verifyCurrentMatches = getWeatherMatches(verifyMissingWeathers, verifyCurrent)
-                                local verifyNextMatches = getWeatherMatches(verifyMissingWeathers, verifyNext)
+                        if weatherCount <
+                            #WEATHER_ORDER then
 
-                                if #verifyCurrentMatches > 0 or #verifyNextMatches > 0 then
-                                    hopPending = false
-                                    lblNeeded.Text = "🟢 Mutationen/Wetter inzwischen relevant → Server behalten"
-                                else
-                                    triggerServerHop()
-                                end
+                            allWeatherComplete =
+                                false
+                        end
+
+
+                        fruitDataList[i] = {
+
+                            count =
+                                weatherCount,
+
+                            missing =
+                                missingList
+                        }
+
+
+                        -- ====================================================
+                        -- AUTO COLLECT
+                        -- ====================================================
+
+                        if weatherCount >=
+                            #WEATHER_ORDER then
+
+                            if autoCollectEnabled then
+
+                                collectFruit(
+                                    spawnObj,
+                                    i
+                                )
                             end
                         end
                     end
-                else
-                    hopPending = false
                 end
-            end
-        end)
 
-        if not success then
-            warn("[SmartGrinder] Hauptschleife Fehler:", err)
+
+                -- ====================================================
+                -- GUI FÜR ALLE 4 FRÜCHTE
+                -- ====================================================
+
+                for i = 1, 4 do
+
+                    local dat =
+                        fruitDataList[i]
+
+
+                    if dat.count >=
+                        #WEATHER_ORDER then
+
+                        fruitLabels[i].Text =
+                            string.format(
+                                "Frucht %d: 6/6 Komplett ✅ → Einsammeln",
+                                i
+                            )
+
+                        fruitLabels[i].TextColor3 =
+                            Color3.fromRGB(
+                                100,
+                                255,
+                                100
+                            )
+
+                    else
+
+                        fruitLabels[i].Text =
+                            string.format(
+                                "Frucht %d: %d/6 Mutationen",
+                                i,
+                                dat.count
+                            )
+
+                        fruitLabels[i].TextColor3 =
+                            Color3.fromRGB(
+                                255,
+                                170,
+                                80
+                            )
+                    end
+                end
+
+
+                -- ====================================================
+                -- ALLE FRÜCHTE FERTIG?
+                -- ====================================================
+
+                if allWeatherComplete then
+
+                    grindCompleted = true
+
+                    autoHopEnabled = false
+
+
+                    hopButton.BackgroundColor3 =
+                        Color3.fromRGB(
+                            80,
+                            80,
+                            100
+                        )
+
+
+                    hopButton.Text =
+                        "Auto-Hop: FERTIG"
+
+
+                    lblPhase.Text =
+                        "🎉 ALLE 4 FRÜCHTE HABEN 6/6!"
+
+
+                    lblTarget.Text =
+                        "Ziel: Früchte wurden eingesammelt"
+
+
+                    lblNeeded.Text =
+                        "Status: Grinder abgeschlossen."
+
+
+                    lblTarget.TextColor3 =
+                        Color3.fromRGB(
+                            100,
+                            255,
+                            100
+                        )
+
+
+                    lblNeeded.TextColor3 =
+                        Color3.fromRGB(
+                            100,
+                            255,
+                            100
+                        )
+
+
+                    return
+                end
+
+
+                -- ====================================================
+                -- AKTUELLES WETTER / NÄCHSTES WETTER
+                -- FÜR ALLE 4 FRÜCHTE
+                -- ====================================================
+
+                local curClean =
+                    cleanString(
+                        cachedCurW
+                    )
+
+
+                local nextClean =
+                    cleanString(
+                        cachedNextW
+                    )
+
+
+                local currentMatch = nil
+
+                local nextMatch = nil
+
+
+                -- Aktuelles Wetter
+                for mutationName, data in pairs(
+                    allNeededWeathers
+                ) do
+
+                    if curClean ==
+                        cleanString(
+                            data.weather
+                        ) then
+
+                        currentMatch = data
+
+                        break
+                    end
+                end
+
+
+                -- Nächstes Wetter
+                if not currentMatch then
+
+                    for mutationName, data in pairs(
+                        allNeededWeathers
+                    ) do
+
+                        if nextClean ==
+                            cleanString(
+                                data.weather
+                            ) then
+
+                            nextMatch = data
+
+                            break
+                        end
+                    end
+                end
+
+
+                -- ====================================================
+                -- AKTUELLES WETTER PASST
+                -- ====================================================
+
+                if currentMatch then
+
+                    local fruitText = ""
+
+
+                    for index, fruitIndex in ipairs(
+                        currentMatch.fruits
+                    ) do
+
+                        if index > 1 then
+                            fruitText =
+                                fruitText .. ", "
+                        end
+
+                        fruitText =
+                            fruitText
+                            .. "F"
+                            .. fruitIndex
+                    end
+
+
+                    lblPhase.Text =
+                        "Status: Wetter aktiv"
+
+
+                    lblTarget.Text =
+                        string.format(
+                            "Ziel: %s braucht '%s' (%s)",
+                            fruitText,
+                            currentMatch.weather,
+                            currentMatch.mutation
+                        )
+
+
+                    lblNeeded.Text =
+                        "🌦️ Wetter aktiv! Bleibe auf Server."
+
+
+                    lblNeeded.TextColor3 =
+                        Color3.fromRGB(
+                            80,
+                            255,
+                            120
+                        )
+
+
+                -- ====================================================
+                -- NÄCHSTES WETTER PASST
+                -- ====================================================
+
+                elseif nextMatch then
+
+                    local fruitText = ""
+
+
+                    for index, fruitIndex in ipairs(
+                        nextMatch.fruits
+                    ) do
+
+                        if index > 1 then
+                            fruitText =
+                                fruitText .. ", "
+                        end
+
+                        fruitText =
+                            fruitText
+                            .. "F"
+                            .. fruitIndex
+                    end
+
+
+                    lblPhase.Text =
+                        "Status: Warte auf Wetter"
+
+
+                    lblTarget.Text =
+                        string.format(
+                            "Ziel: %s braucht '%s' (%s)",
+                            fruitText,
+                            nextMatch.weather,
+                            nextMatch.mutation
+                        )
+
+
+                    lblNeeded.Text =
+                        "⏳ Nächstes Wetter passt! Warte."
+
+
+                    lblNeeded.TextColor3 =
+                        Color3.fromRGB(
+                            255,
+                            220,
+                            80
+                        )
+
+
+                -- ====================================================
+                -- KEIN WETTER PASST
+                -- ====================================================
+
+                else
+
+                    lblPhase.Text =
+                        "Status: Kein benötigtes Wetter"
+
+
+                    lblTarget.Text =
+                        "Ziel: Keine der 4 Früchte braucht dieses Wetter"
+
+
+                    lblNeeded.Text =
+                        "❌ Wetter nicht benötigt → Hoppe"
+
+
+                    lblNeeded.TextColor3 =
+                        Color3.fromRGB(
+                            220,
+                            100,
+                            100
+                        )
+
+
+                    -- ====================================================
+                    -- SERVER HOP
+                    -- ====================================================
+
+                    if autoHopEnabled
+                        and not teleporting then
+
+                        teleporting = true
+
+
+                        print(
+                            "[SmartGrinder] 🔄 Serverhop! JobId:",
+                            game.JobId
+                        )
+
+
+                        hopButton.Text =
+                            "Auto-Hop: Wechsle Server..."
+
+
+                        pcall(function()
+
+                            TeleportService:Teleport(
+                                game.PlaceId,
+                                LocalPlayer
+                            )
+                        end)
+                    end
+                end
+            end)
+
+
+        if not ok then
+
+            warn(
+                "[SmartGrinder] Fehler:",
+                err
+            )
         end
-        task.wait(FRUIT_UPDATE_INTERVAL)
+
+
+        task.wait(
+            MAIN_UPDATE_TIME
+        )
     end
 end)
+
+
+print(
+    "[SmartGrinder] Erfolgreich geladen!"
+)
