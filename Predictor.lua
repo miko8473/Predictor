@@ -2,7 +2,6 @@
 -- ============================================================
 -- SPIRIT FRUIT SMART GRINDER
 -- ALL 4 FRUITS + AUTO COLLECT + WEATHER PREVIEW + AUTO-HOP
--- IMPROVED WEATHER/MUTATION DETECTION
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +14,6 @@ local LocalPlayer = Players.LocalPlayer
 print("============================================================")
 print("[SmartGrinder] Gestartet!")
 print("[SmartGrinder] Alle 4 Früchte + Auto-Collect")
-print("[SmartGrinder] Verbesserte Acid-Rain-Erkennung")
 print("============================================================")
 
 
@@ -455,6 +453,12 @@ end)
 -- ============================================================
 -- STRING BEREINIGEN
 -- ============================================================
+-- FIX:
+-- Acid-Rain
+-- Acid Rain
+-- Acid_Rain
+-- AcidRain
+-- werden alle gleich erkannt.
 
 local function cleanString(str)
 
@@ -463,65 +467,8 @@ local function cleanString(str)
     end
 
     return tostring(str)
-        :gsub("%s+", "")
         :lower()
-end
-
-
--- ============================================================
--- VERBESSERTE NORMALISIERUNG
---
--- Macht z.B.:
---
--- Acid-Rain
--- Acid Rain
--- AcidRain
--- acid-rain
--- ACID RAIN
---
--- zu:
---
--- acidrain
--- ============================================================
-
-local function normalizeWeather(str)
-
-    if not str then
-        return ""
-    end
-
-    str = tostring(str):lower()
-
-    -- Leerzeichen entfernen
-    str = str:gsub("%s+", "")
-
-    -- Bindestriche entfernen
-    str = str:gsub("%-", "")
-
-    -- Unterstriche entfernen
-    str = str:gsub("_", "")
-
-    return str
-end
-
-
--- ============================================================
--- WETTER ALIAS / VERGLEICH
--- ============================================================
-
-local function weatherMatches(weather1, weather2)
-
-    local a =
-        normalizeWeather(weather1)
-
-    local b =
-        normalizeWeather(weather2)
-
-    if a == "" or b == "" then
-        return false
-    end
-
-    return a == b
+        :gsub("[%s%-%_]+", "")
 end
 
 
@@ -539,7 +486,6 @@ local function getActiveWeather()
 
         local val = nil
 
-
         if currentWeatherObj:IsA("ValueBase") then
 
             val =
@@ -553,7 +499,7 @@ local function getActiveWeather()
         end
 
 
-        if not val or tostring(val) == "" then
+        if not val or val == "" then
 
             val =
                 currentWeatherObj:GetAttribute("Value")
@@ -621,6 +567,27 @@ local function getNextWeather()
 
 
     return "Unknown"
+end
+
+
+-- ============================================================
+-- RESET UI
+-- ============================================================
+
+local function resetUIState(phase, target, needed)
+
+    lblPhase.Text = phase or "Phase: Warte..."
+    lblTarget.Text = target or "Ziel: Suche..."
+    lblNeeded.Text = needed or "Status: Warte..."
+
+    lblPhase.TextColor3 =
+        Color3.fromRGB(100, 200, 255)
+
+    lblTarget.TextColor3 =
+        Color3.fromRGB(255, 190, 80)
+
+    lblNeeded.TextColor3 =
+        Color3.fromRGB(80, 255, 120)
 end
 
 
@@ -741,6 +708,7 @@ local function collectFruit(spawnObj, fruitIndex)
         return false
     end
 
+
     if not spawnObj then
         return false
     end
@@ -840,48 +808,6 @@ end
 
 
 -- ============================================================
--- GUI RESET
--- ============================================================
-
-local function resetUIState(
-    phase,
-    target,
-    needed
-)
-
-    lblPhase.Text =
-        phase
-
-    lblTarget.Text =
-        target
-
-    lblNeeded.Text =
-        needed
-
-    lblPhase.TextColor3 =
-        Color3.fromRGB(
-            100,
-            200,
-            255
-        )
-
-    lblTarget.TextColor3 =
-        Color3.fromRGB(
-            255,
-            190,
-            80
-        )
-
-    lblNeeded.TextColor3 =
-        Color3.fromRGB(
-            210,
-            210,
-            220
-        )
-end
-
-
--- ============================================================
 -- WETTER-CACHE
 -- ============================================================
 
@@ -896,29 +822,11 @@ task.spawn(function()
 
     while screenGui.Parent do
 
-        local successCurrent, currentResult =
-            pcall(getActiveWeather)
+        cachedCurW =
+            getActiveWeather()
 
-        if successCurrent and currentResult then
-            cachedCurW =
-                tostring(currentResult)
-        else
-            cachedCurW =
-                "Unknown"
-        end
-
-
-        local successNext, nextResult =
-            pcall(getNextWeather)
-
-        if successNext and nextResult then
-            cachedNextW =
-                tostring(nextResult)
-        else
-            cachedNextW =
-                "Unknown"
-        end
-
+        cachedNextW =
+            getNextWeather()
 
         task.wait(
             WEATHER_UPDATE_TIME
@@ -938,10 +846,6 @@ task.spawn(function()
         local ok, err =
             pcall(function()
 
-                -- ====================================================
-                -- WETTER GUI
-                -- ====================================================
-
                 lblWeather.Text =
                     "Aktuell: "
                     .. cachedCurW
@@ -950,10 +854,6 @@ task.spawn(function()
                     "Nächstes: "
                     .. cachedNextW
 
-
-                -- ====================================================
-                -- FRÜCHTE HOLEN
-                -- ====================================================
 
                 local fruitMap =
                     getFruitSpawns()
@@ -1011,36 +911,13 @@ task.spawn(function()
                         local foundMap = {}
 
 
-                        -- ====================================================
-                        -- MUTATIONEN EINLESEN
-                        -- ====================================================
+                        for mut in tostring(mutationsAttr):gmatch(
+                            "[^,%s]+"
+                        ) do
 
-                        if typeof(mutationsAttr) == "string" then
-
-                            for mut in mutationsAttr:gmatch(
-                                "[^,%s]+"
-                            ) do
-
-                                foundMap[
-                                    normalizeWeather(mut)
-                                ] = true
-                            end
-
-                        else
-
-                            -- Falls das Spiel aus irgendeinem Grund
-                            -- einen anderen Wert liefert.
-                            local mutationString =
-                                tostring(mutationsAttr)
-
-                            for mut in mutationString:gmatch(
-                                "[^,%s,]+"
-                            ) do
-
-                                foundMap[
-                                    normalizeWeather(mut)
-                                ] = true
-                            end
+                            foundMap[
+                                cleanString(mut)
+                            ] = true
                         end
 
 
@@ -1049,18 +926,12 @@ task.spawn(function()
                         local missingList = {}
 
 
-                        -- ====================================================
-                        -- DIE 6 MUTATIONEN PRÜFEN
-                        -- ====================================================
-
                         for _, entry in ipairs(
                             WEATHER_ORDER
                         ) do
 
                             local mutationName =
-                                normalizeWeather(
-                                    entry.mutation
-                                )
+                                cleanString(entry.mutation)
 
 
                             if foundMap[
@@ -1078,7 +949,9 @@ task.spawn(function()
                                 )
 
 
-                                -- Global speichern
+                                -- Global speichern:
+                                -- egal welche Frucht es braucht.
+
                                 if not allNeededWeathers[
                                     mutationName
                                 ] then
@@ -1246,31 +1119,41 @@ task.spawn(function()
 
 
                 -- ====================================================
-                -- AKTUELLES / NÄCHSTES WETTER
+                -- AKTUELLES WETTER / NÄCHSTES WETTER
+                -- FÜR ALLE 4 FRÜCHTE
                 -- ====================================================
 
+                local curClean =
+                    cleanString(
+                        cachedCurW
+                    )
+
+
+                local nextClean =
+                    cleanString(
+                        cachedNextW
+                    )
+
+
                 local currentMatch = nil
+
                 local nextMatch = nil
 
 
                 -- ====================================================
-                -- AKTUELLES WETTER PRÜFEN
-                --
-                -- WICHTIG:
-                -- Acid-Rain == Acid Rain == AcidRain
+                -- AKTUELLES WETTER
                 -- ====================================================
 
                 for mutationName, data in pairs(
                     allNeededWeathers
                 ) do
 
-                    if weatherMatches(
-                        cachedCurW,
-                        data.weather
-                    ) then
+                    if curClean ==
+                        cleanString(
+                            data.weather
+                        ) then
 
-                        currentMatch =
-                            data
+                        currentMatch = data
 
                         break
                     end
@@ -1278,7 +1161,7 @@ task.spawn(function()
 
 
                 -- ====================================================
-                -- NÄCHSTES WETTER PRÜFEN
+                -- NÄCHSTES WETTER
                 -- ====================================================
 
                 if not currentMatch then
@@ -1287,13 +1170,12 @@ task.spawn(function()
                         allNeededWeathers
                     ) do
 
-                        if weatherMatches(
-                            cachedNextW,
-                            data.weather
-                        ) then
+                        if nextClean ==
+                            cleanString(
+                                data.weather
+                            ) then
 
-                            nextMatch =
-                                data
+                            nextMatch = data
 
                             break
                         end
@@ -1315,9 +1197,11 @@ task.spawn(function()
                     ) do
 
                         if index > 1 then
+
                             fruitText =
                                 fruitText .. ", "
                         end
+
 
                         fruitText =
                             fruitText
@@ -1351,6 +1235,11 @@ task.spawn(function()
                         )
 
 
+                    -- WICHTIG:
+                    -- Bei benötigtem aktuellem Wetter KEIN Server-Hop.
+                    teleporting = false
+
+
                 -- ====================================================
                 -- NÄCHSTES WETTER PASST
                 -- ====================================================
@@ -1365,9 +1254,11 @@ task.spawn(function()
                     ) do
 
                         if index > 1 then
+
                             fruitText =
                                 fruitText .. ", "
                         end
+
 
                         fruitText =
                             fruitText
@@ -1477,9 +1368,5 @@ end)
 
 print(
     "[SmartGrinder] Erfolgreich geladen!"
-)
-
-print(
-    "[SmartGrinder] Acid-Rain/Radioactive Fix aktiv!"
 )
 ```
